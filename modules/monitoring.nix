@@ -187,11 +187,14 @@
         "/proc:/host/proc:ro"
         "/sys:/host/sys:ro"
         "/:/host/rootfs:ro"
+        "/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro"
       ];
       cmd = [
         "--path.procfs=/host/proc"
         "--path.sysfs=/host/sys"
         "--path.rootfs=/host/rootfs"
+        "--collector.systemd"
+        "--collector.systemd.unit-include=cron-.*\\.(service|timer)"
       ];
       extraOptions = [
         "--network=monitoring-net"

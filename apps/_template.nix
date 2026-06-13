@@ -101,6 +101,27 @@ in
     };
   };
 
+  # Scheduled jobs — uncomment and customise as needed.
+  # See modules/cron.nix for full option reference.
+  # services.appCronJobs = [
+  #   {
+  #     app = appName;
+  #     name = "cleanup";
+  #     schedule = "*-*-* 02:00:00";    # daily at 2 AM
+  #     type = "http";                  # or "exec"
+  #     endpoint = "http://${appName}:${appPort}/api/cron/cleanup";
+  #     description = "Nightly data cleanup";
+  #   }
+  #   {
+  #     app = appName;
+  #     name = "send-digests";
+  #     schedule = "*-*-* 08:00:00";
+  #     type = "exec";
+  #     command = "/app/bin/send-digests";
+  #     description = "Send daily email digests";
+  #   }
+  # ];
+
   # Ensure the container starts after the proxy network and env file exist
   systemd.services."docker-${appName}" = {
     after = [

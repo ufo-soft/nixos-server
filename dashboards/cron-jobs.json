@@ -1,0 +1,207 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "uid": "cron-jobs",
+  "title": "Cron Jobs",
+  "tags": ["cron", "systemd"],
+  "editable": true,
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "timezone": "browser",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Job Status",
+      "description": "Current state of each cron job service (1 = that state is active)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "node_systemd_unit_state{name=~\"cron-.*\\\\.service\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": ["name", "state", "Value"]
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "include",
+            "filters": [
+              {
+                "fieldName": "Value",
+                "config": {
+                  "id": "greater",
+                  "options": { "value": 0 }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "name" },
+            "properties": [{ "id": "displayName", "value": "Job" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "state" },
+            "properties": [
+              { "id": "displayName", "value": "State" },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "inactive": { "text": "OK (inactive)", "color": "green" } } },
+                  { "type": "value", "options": { "active": { "text": "Running", "color": "blue" } } },
+                  { "type": "value", "options": { "failed": { "text": "FAILED", "color": "red" } } }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "custom.hidden", "value": true }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Last Trigger Time",
+      "description": "How long ago each cron timer last fired",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "time() - node_systemd_timer_last_trigger_seconds{name=~\"cron-.*\\\\.timer\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": ["name", "Value"]
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "name" },
+            "properties": [{ "id": "displayName", "value": "Timer" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "displayName", "value": "Time Since Last Run" }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "title": "Failed Jobs",
+      "description": "Cron services currently in failed state",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "count(node_systemd_unit_state{name=~\"cron-.*\\\\.service\", state=\"failed\"} == 1) or vector(0)",
+          "legendFormat": "Failed Jobs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Job State Over Time",
+      "description": "Track which jobs have been in failed state over time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "node_systemd_unit_state{name=~\"cron-.*\\\\.service\", state=\"failed\"}",
+          "legendFormat": "{{ name }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          },
+          "max": 1,
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Timer Triggers",
+      "description": "When each timer last fired (raw timestamp for alerting context)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "changes(node_systemd_timer_last_trigger_seconds{name=~\"cron-.*\\\\.timer\"}[5m])",
+          "legendFormat": "{{ name }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

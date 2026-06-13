@@ -16,6 +16,7 @@
     ./modules/postgresql.nix
     ./modules/traefik.nix
     ./modules/cloudflare-ddns.nix
+    ./modules/cron.nix
 
     # Observability
     ./modules/monitoring.nix
