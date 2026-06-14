@@ -144,6 +144,7 @@
         GF_SECURITY_ADMIN_USER = "admin";
         # GF_SECURITY_ADMIN_PASSWORD set via environmentFiles
         GF_SERVER_ROOT_URL = "https://grafana.timothymarias.com";
+        GF_INSTALL_PLUGINS = "yesoreyeram-infinity-datasource";
       };
       environmentFiles = [ "/run/grafana/env" ];
       extraOptions = [
@@ -201,6 +202,37 @@
       ];
     };
 
+    healthchecks = {
+      image = "healthchecks/healthchecks@sha256:6b5f593d40994345053f05f86decfa9e17ab1e4422df2ae58abd032a7b14d8f6";
+      volumes = [
+        "healthchecks-data:/data"
+      ];
+      environment = {
+        ALLOWED_HOSTS = "*";
+        APPRISE_ENABLED = "False";
+        DEBUG = "False";
+        DEFAULT_FROM_EMAIL = "healthchecks@timothymarias.com";
+        PING_BODY_LIMIT = "10000";
+        REGISTRATION_OPEN = "False";
+        SITE_NAME = "Healthchecks";
+        SITE_ROOT = "https://healthchecks.timothymarias.com";
+      };
+      environmentFiles = [ "/run/healthchecks/env" ];
+      extraOptions = [
+        "--network=monitoring-net"
+        "--network=proxy-net"
+        "--add-host=host.docker.internal:host-gateway"
+      ];
+      labels = {
+        "traefik.enable" = "true";
+        "traefik.http.routers.healthchecks.rule" = "Host(`healthchecks.timothymarias.com`)";
+        "traefik.http.routers.healthchecks.entrypoints" = "websecure";
+        "traefik.http.routers.healthchecks.tls" = "true";
+        "traefik.http.routers.healthchecks.middlewares" = "rate-limit@file,secure-headers@file";
+        "traefik.http.services.healthchecks.loadbalancer.server.port" = "8000";
+      };
+    };
+
     postgres-exporter = {
       image = "prometheuscommunity/postgres-exporter@sha256:6999a7657e2f2fb0ca6ebf417213eebf6dc7d21b30708c622f6fcb11183a2bb0";
       environmentFiles = [
@@ -235,6 +267,20 @@
           access = "proxy";
           url = "http://loki:3100";
         }
+        {
+          name = "Healthchecks";
+          type = "yesoreyeram-infinity-datasource";
+          uid = "healthchecks";
+          access = "proxy";
+          jsonData = {
+            auth_method = "apiKey";
+            apiKeyKey = "X-Api-Key";
+            apiKeyType = "header";
+          };
+          secureJsonData = {
+            apiKeyValue = "$__file{/run/grafana/healthchecks-api-key}";
+          };
+        }
       ];
     });
     dashboardProvisioningConfig = pkgs.writeText "grafana-dashboards.yaml" (builtins.toJSON {
@@ -268,6 +314,10 @@
         echo "GF_SECURITY_ADMIN_PASSWORD=$(cat ${config.sops.secrets."grafana-admin-password".path})" > /run/grafana/env
         chmod 600 /run/grafana/env
 
+        # Healthchecks API key for Grafana Infinity datasource
+        cp ${config.sops.secrets."healthchecks/api-key".path} /run/grafana/healthchecks-api-key
+        chmod 600 /run/grafana/healthchecks-api-key
+
         # Datasource provisioning
         cp ${datasourcesConfig} /run/grafana/provisioning/datasources/datasources.yaml
 
@@ -295,6 +345,34 @@
     };
   };
 
+  # Generate Healthchecks env file from sops secrets
+  systemd.services.healthchecks-env = {
+    description = "Generate Healthchecks environment file from secrets";
+    after = [ "sops-nix.service" ];
+    before = [ "docker-healthchecks.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "healthchecks-env" ''
+        mkdir -p /run/healthchecks
+        DB_PASS="$(cat ${config.sops.secrets."healthchecks/database-password".path})"
+        {
+          echo "DB=postgres"
+          echo "DB_HOST=host.docker.internal"
+          echo "DB_PORT=6432"
+          echo "DB_NAME=healthchecks"
+          echo "DB_USER=healthchecks"
+          echo "DB_PASSWORD=''${DB_PASS}"
+          echo "SECRET_KEY=$(cat ${config.sops.secrets."healthchecks/secret-key".path})"
+          echo "SUPERUSER_EMAIL=$(cat ${config.sops.secrets."healthchecks/superuser-email".path})"
+          echo "SUPERUSER_PASSWORD=$(cat ${config.sops.secrets."healthchecks/superuser-password".path})"
+        } > /run/healthchecks/env
+        chmod 600 /run/healthchecks/env
+      '';
+    };
+  };
+
   # Ensure monitoring containers start after networks exist
   systemd.services = {
     docker-prometheus.after = [ "docker-network-monitoring-net.service" ];
@@ -318,5 +396,9 @@
 
     docker-postgres-exporter.after = [ "docker-network-monitoring-net.service" "postgres-exporter-env.service" ];
     docker-postgres-exporter.requires = [ "docker-network-monitoring-net.service" "postgres-exporter-env.service" ];
+
+    docker-healthchecks.after = [ "docker-network-monitoring-net.service" "docker-network-proxy-net.service" "healthchecks-env.service" "pgbouncer.service" ];
+    docker-healthchecks.requires = [ "docker-network-monitoring-net.service" "docker-network-proxy-net.service" "healthchecks-env.service" ];
+    docker-healthchecks.postStart = "${pkgs.docker}/bin/docker network connect proxy-net healthchecks 2>/dev/null || true";
   };
 }

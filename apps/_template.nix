@@ -110,6 +110,7 @@ in
   #     schedule = "*-*-* 02:00:00";    # daily at 2 AM
   #     type = "http";                  # or "exec"
   #     endpoint = "http://${appName}:${appPort}/api/cron/cleanup";
+  #     pingUrl = "http://healthchecks:8000/ping/<uuid>";  # from Healthchecks UI
   #     description = "Nightly data cleanup";
   #   }
   #   {
@@ -118,6 +119,7 @@ in
   #     schedule = "*-*-* 08:00:00";
   #     type = "exec";
   #     command = "/app/bin/send-digests";
+  #     pingUrl = "http://healthchecks:8000/ping/<uuid>";
   #     description = "Send daily email digests";
   #   }
   # ];

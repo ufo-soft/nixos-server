@@ -94,6 +94,30 @@
         owner = "root";
       };
 
+      # Healthchecks
+      "healthchecks/database-password" = {
+        owner = "root";
+        restartUnits = [ "db-passwords.service" "healthchecks-env.service" ];
+      };
+
+      "healthchecks/secret-key" = {
+        owner = "root";
+        restartUnits = [ "healthchecks-env.service" "docker-healthchecks.service" ];
+      };
+
+      "healthchecks/superuser-email" = {
+        owner = "root";
+      };
+
+      "healthchecks/superuser-password" = {
+        owner = "root";
+      };
+
+      "healthchecks/api-key" = {
+        owner = "root";
+        restartUnits = [ "grafana-env.service" "docker-grafana.service" ];
+      };
+
       "root-password" = {
         owner = "root";
         neededForUsers = true;

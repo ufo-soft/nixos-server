@@ -3,7 +3,7 @@
   "__requires": [],
   "uid": "cron-jobs",
   "title": "Cron Jobs",
-  "tags": ["cron", "systemd"],
+  "tags": ["cron", "systemd", "healthchecks"],
   "editable": true,
   "refresh": "1m",
   "schemaVersion": 38,
@@ -14,11 +14,193 @@
   },
   "panels": [
     {
+      "id": 10,
+      "title": "",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
       "id": 1,
-      "title": "Job Status",
-      "description": "Current state of each cron job service (1 = that state is active)",
+      "title": "Healthchecks — All Checks",
+      "description": "Live status of all registered Healthchecks checks via API",
       "type": "table",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 1 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "healthchecks" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://healthchecks:8000/api/v3/checks/",
+          "root_selector": "checks",
+          "columns": [
+            { "selector": "name", "text": "Check", "type": "string" },
+            { "selector": "status", "text": "Status", "type": "string" },
+            { "selector": "last_ping", "text": "Last Ping", "type": "timestamp" },
+            { "selector": "next_ping", "text": "Next Ping", "type": "timestamp" },
+            { "selector": "last_duration", "text": "Duration (s)", "type": "number" },
+            { "selector": "n_pings", "text": "Total Pings", "type": "number" }
+          ],
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "up": { "text": "UP", "color": "green" } } },
+                  { "type": "value", "options": { "down": { "text": "DOWN", "color": "red" } } },
+                  { "type": "value", "options": { "grace": { "text": "GRACE", "color": "yellow" } } },
+                  { "type": "value", "options": { "new": { "text": "NEW", "color": "blue" } } },
+                  { "type": "value", "options": { "paused": { "text": "PAUSED", "color": "purple" } } }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Checks Down",
+      "description": "Number of Healthchecks checks currently in down state",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 11 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "healthchecks" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://healthchecks:8000/api/v3/checks/",
+          "root_selector": "checks",
+          "columns": [
+            { "selector": "status", "text": "status", "type": "string" }
+          ],
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "include",
+            "filters": [
+              {
+                "fieldName": "status",
+                "config": {
+                  "id": "equal",
+                  "options": { "value": "down" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": { "reducer": "count" }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Checks in Grace Period",
+      "description": "Checks that are late but still within their grace period",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 11 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "healthchecks" },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "http://healthchecks:8000/api/v3/checks/",
+          "root_selector": "checks",
+          "columns": [
+            { "selector": "status", "text": "status", "type": "string" }
+          ],
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "include",
+            "filters": [
+              {
+                "fieldName": "status",
+                "config": {
+                  "id": "equal",
+                  "options": { "value": "grace" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": { "reducer": "count" }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "yellow" }
+            ]
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 4,
+      "title": "Systemd — Job Status",
+      "description": "Current state of each cron job service",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -82,11 +264,11 @@
       }
     },
     {
-      "id": 2,
-      "title": "Last Trigger Time",
+      "id": 5,
+      "title": "Systemd — Last Trigger Time",
       "description": "How long ago each cron timer last fired",
       "type": "table",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -123,11 +305,11 @@
       }
     },
     {
-      "id": 3,
-      "title": "Failed Jobs",
+      "id": 6,
+      "title": "Systemd — Failed Jobs",
       "description": "Cron services currently in failed state",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -149,11 +331,11 @@
       }
     },
     {
-      "id": 4,
-      "title": "Job State Over Time",
+      "id": 7,
+      "title": "Systemd — Job State Over Time",
       "description": "Track which jobs have been in failed state over time",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -181,11 +363,11 @@
       }
     },
     {
-      "id": 5,
-      "title": "Timer Triggers",
-      "description": "When each timer last fired (raw timestamp for alerting context)",
+      "id": 8,
+      "title": "Systemd — Timer Triggers",
+      "description": "When each timer fired",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {

@@ -6,6 +6,7 @@ let
   appDatabases = [
     { name = "family-archive"; user = "family_archive"; dbName = "family_archive"; }
     { name = "home-cooking"; user = "home_cooking"; dbName = "home_cooking"; }
+    { name = "healthchecks"; user = "healthchecks"; dbName = "healthchecks"; }
   ];
 
   # Docker bridge subnet — containers connect from this range.

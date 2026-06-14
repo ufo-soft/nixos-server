@@ -8,6 +8,11 @@
 #   - "http"  — curl an endpoint on the app container (via Traefik or direct)
 #   - "exec"  — docker exec a command inside the running container
 #
+# Heartbeat monitoring:
+#   Set `pingUrl` to a Healthchecks.io ping URL and the job will automatically
+#   signal start, success, and failure. Get the URL from the Healthchecks UI
+#   after creating a check.
+#
 # Usage in an app file:
 #
 #   services.appCronJobs = [
@@ -17,6 +22,7 @@
 #       schedule = "*-*-* 02:00:00";   # systemd OnCalendar syntax
 #       type = "http";
 #       endpoint = "http://my-app:8080/api/cron/cleanup";
+#       pingUrl = "http://healthchecks:8000/ping/<uuid>";
 #       description = "Nightly data cleanup";
 #     }
 #     {
@@ -25,6 +31,7 @@
 #       schedule = "*-*-* 08:00:00";
 #       type = "exec";
 #       command = "/app/bin/send-digests";
+#       pingUrl = "http://healthchecks:8000/ping/<uuid>";
 #       description = "Send daily email digests";
 #     }
 #   ];
@@ -82,15 +89,47 @@ let
         default = 300;
         description = "Timeout in seconds before the job is killed";
       };
+      pingUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Healthchecks ping URL for heartbeat monitoring (e.g. http://healthchecks:8000/ping/<uuid>)";
+      };
     };
   };
 
+  # Wrap the actual job command with Healthchecks ping signals
   mkJobScript = job:
+    let
+      curl = "${pkgs.curl}/bin/curl";
+      hasPing = job.pingUrl != "";
+      pingStart = lib.optionalString hasPing ''
+        ${curl} -fsS -m 10 "${job.pingUrl}/start" -o /dev/null || true
+      '';
+      pingSuccess = lib.optionalString hasPing ''
+        ${curl} -fsS -m 10 "${job.pingUrl}" -o /dev/null || true
+      '';
+      pingFail = lib.optionalString hasPing ''
+        ${curl} -fsS -m 10 "${job.pingUrl}/fail" -o /dev/null || true
+      '';
+      trapAndPing = lib.optionalString hasPing ''
+        ping_result() {
+          local exit_code=$?
+          if [ $exit_code -ne 0 ]; then
+            ${pingFail}
+          else
+            ${pingSuccess}
+          fi
+        }
+        trap ping_result EXIT
+      '';
+    in
     if job.type == "http" then
       pkgs.writeShellScript "cron-${job.app}-${job.name}" ''
         set -euo pipefail
+        ${pingStart}
+        ${trapAndPing}
         echo "Cron: ${job.app}/${job.name} — hitting ${job.endpoint}"
-        RESPONSE=$(${pkgs.curl}/bin/curl -sf -X ${job.httpMethod} \
+        RESPONSE=$(${curl} -sf -X ${job.httpMethod} \
           --max-time ${toString job.timeout} \
           -w "\n%{http_code}" \
           "${job.endpoint}")
@@ -105,6 +144,8 @@ let
     else
       pkgs.writeShellScript "cron-${job.app}-${job.name}" ''
         set -euo pipefail
+        ${pingStart}
+        ${trapAndPing}
         echo "Cron: ${job.app}/${job.name} — exec in container"
         ${pkgs.docker}/bin/docker exec ${job.app} ${job.command}
       '';
@@ -114,7 +155,8 @@ let
     value = {
       description = "Cron: ${job.app}/${job.name}"
         + lib.optionalString (job.description != "") " — ${job.description}";
-      after = [ "docker-${job.app}.service" ];
+      after = [ "docker-${job.app}.service" ]
+        ++ lib.optional (job.pingUrl != "") "docker-healthchecks.service";
       requires = [ "docker-${job.app}.service" ];
       serviceConfig = {
         Type = "oneshot";
