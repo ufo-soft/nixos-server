@@ -317,7 +317,7 @@
 
         # Healthchecks API key for Grafana Infinity datasource
         cp ${config.sops.secrets."healthchecks/api-key".path} /run/grafana/healthchecks-api-key
-        chmod 600 /run/grafana/healthchecks-api-key
+        chmod 644 /run/grafana/healthchecks-api-key
 
         # Datasource provisioning
         cp ${datasourcesConfig} /run/grafana/provisioning/datasources/datasources.yaml
