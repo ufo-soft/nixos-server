@@ -34,6 +34,12 @@ sudo nixos-rebuild switch --rollback
 # Manage backups
 ./scripts/backup-restore.sh list|restore-db|restore-volume
 
+# Manage cron jobs
+./scripts/cron.sh                   # list timers
+./scripts/cron.sh status            # next/last run times
+./scripts/cron.sh logs <app> <job>  # view logs
+./scripts/cron.sh run <app> <job>   # trigger immediately
+
 # Edit encrypted secrets
 sops secrets/secrets.yaml
 ```
@@ -42,10 +48,10 @@ sops secrets/secrets.yaml
 
 - **flake.nix** — Entry point. Pins nixpkgs (by commit hash) + sops-nix inputs, defines single `nixosConfigurations.server` output.
 - **configuration.nix** — Top-level imports only. Add new app imports here.
-- **modules/** — Each file owns one concern (base, ssh, firewall, hardening, secrets, docker, postgresql, traefik, monitoring, backups).
+- **modules/** — Each file owns one concern (base, ssh, firewall, hardening, secrets, docker, postgresql, traefik, monitoring, cron, backups).
 - **apps/** — One file per app container. `_template.nix` is the canonical starting point.
 - **secrets/** — sops-nix encrypted secrets (age keys). `.sops.yaml` has key config.
-- **scripts/** — Operational helpers (deploy, db-create, backup-restore).
+- **scripts/** — Operational helpers (deploy, db-create, backup-restore, cron).
 
 ## Adding a New App
 
@@ -67,4 +73,6 @@ sops secrets/secrets.yaml
 - Traefik accesses Docker via a socket proxy (`tecnativa/docker-socket-proxy`), not a direct socket mount
 - The `deploy` user has scoped sudo (nixos-rebuild, systemctl, nix-collect-garbage only), not blanket wheel access
 - Backups are GPG-encrypted using a sops-managed symmetric key
+- App cron jobs are registered via `services.appCronJobs` in app nix files — each job gets a systemd timer + optional Healthchecks heartbeat ping
+- Healthchecks (self-hosted) provides heartbeat monitoring for cron jobs, integrated into Grafana via the Infinity datasource
 - TODOs in the codebase mark placeholders that need real values for deployment

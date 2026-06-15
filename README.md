@@ -62,6 +62,11 @@ These go in `secrets/secrets.yaml` (encrypted). See `secrets/secrets.example.yam
 | **`grafana-admin-password`** | Grafana web UI login | Choose a password |
 | **`postgres-exporter-dsn`** | Prometheus monitoring of PostgreSQL | `postgresql://postgres_exporter:<password>@host.docker.internal:6432/postgres?sslmode=disable` |
 | **`auth-service/jwt-secret`** | JWT signing for the auth ForwardAuth service | Generate with `openssl rand -hex 32` |
+| **`healthchecks/database-password`** | Healthchecks PostgreSQL password | Choose a password |
+| **`healthchecks/secret-key`** | Django secret key for Healthchecks | Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| **`healthchecks/superuser-email`** | Healthchecks admin login email | Your email |
+| **`healthchecks/superuser-password`** | Healthchecks admin login password | Choose a password |
+| **`healthchecks/api-key`** | Read-only API key for Grafana integration | Create in Healthchecks UI → Settings → API Access after first login |
 
 ## Setup Steps
 
@@ -246,7 +251,8 @@ Internet → Cloudflare (proxy / DDoS / WAF — terminates public TLS)
                ├─ Prometheus (metrics)
                ├─ Grafana (dashboards)
                ├─ Loki (logs)
-               └─ OTel Collector (receives OTLP from apps)
+               ├─ OTel Collector (receives OTLP from apps)
+               └─ Healthchecks (cron job heartbeat monitoring)
 ```
 
 ### Network Isolation
@@ -304,6 +310,47 @@ sops secrets/secrets.yaml
 sops.secrets."my-app/api-key" = { owner = "root"; };
 ```
 
+### Cron Jobs
+
+Apps can register scheduled jobs via `services.appCronJobs` in their nix file. Each job becomes a systemd timer + oneshot service pair. Two job types:
+
+- **`http`** — curls an endpoint on the app container
+- **`exec`** — runs `docker exec` inside the container
+
+Jobs can optionally ping [Healthchecks](https://healthchecks.timothymarias.com) for heartbeat monitoring by setting `pingUrl`. The job automatically signals start, success, and failure.
+
+```nix
+# In apps/<name>.nix
+services.appCronJobs = [
+  {
+    app = appName;
+    name = "cleanup";
+    schedule = "*-*-* 02:00:00";        # daily at 2 AM (systemd OnCalendar syntax)
+    type = "http";
+    endpoint = "http://${appName}:${appPort}/api/cron/cleanup";
+    pingUrl = "http://healthchecks:8000/ping/<uuid>";  # from Healthchecks UI
+    description = "Nightly data cleanup";
+  }
+];
+```
+
+To add a new cron job:
+
+1. Create a check in the Healthchecks UI, copy the ping UUID
+2. Add a job entry to `services.appCronJobs` in your app's nix file
+3. Rebuild
+
+Management:
+
+```bash
+./scripts/cron.sh                   # list all app cron timers
+./scripts/cron.sh status            # show next/last run times
+./scripts/cron.sh logs <app> <job>  # view recent logs
+./scripts/cron.sh run <app> <job>   # trigger a job immediately
+```
+
+The **Cron Jobs** Grafana dashboard shows both Healthchecks heartbeat status and systemd timer metrics.
+
 ### Backups
 
 | What | When | Retention | Format |
@@ -326,10 +373,11 @@ gpg --decrypt --batch --passphrase-file /path/to/key backup.sql.gz.gpg | gunzip 
 
 ### Monitoring
 
-- **Grafana** at `grafana.yourdomain.com` — dashboards for system and app metrics
-- **Prometheus** — scrapes node-exporter, postgres-exporter, Traefik (metrics on internal port 8082)
+- **Grafana** at `grafana.yourdomain.com` — dashboards for system, app, and cron job metrics
+- **Prometheus** — scrapes node-exporter, postgres-exporter, Traefik, systemd timers (metrics on internal port 8082)
 - **Loki** — aggregated container and system logs
 - **OTel Collector** — receives OTLP telemetry from app containers
+- **Healthchecks** at `healthchecks.yourdomain.com` — cron job heartbeat monitoring, alerts on missed/failed jobs
 
 ### Troubleshooting
 
@@ -369,7 +417,8 @@ sudo systemctl --failed
 │   ├── postgresql.nix          PostgreSQL + PgBouncer + app DB registry
 │   ├── traefik.nix             Reverse proxy + Origin CA TLS + ForwardAuth
 │   ├── cloudflare-ddns.nix     Automatic public IP → Cloudflare DNS updates
-│   ├── monitoring.nix          Prometheus, Grafana, Loki, OTel, exporters
+│   ├── monitoring.nix          Prometheus, Grafana, Loki, OTel, Healthchecks, exporters
+│   ├── cron.nix                Declarative app cron jobs (systemd timers + Healthchecks pings)
 │   ├── backups.nix             Scheduled encrypted pg_dump + volume backups
 │   └── secrets.nix             sops-nix secret declarations
 ├── apps/
@@ -377,7 +426,8 @@ sudo systemctl --failed
 ├── scripts/
 │   ├── deploy.sh               Update image SHA + rebuild
 │   ├── db-create.sh            Create app database + user
-│   └── backup-restore.sh       List and restore backups
+│   ├── backup-restore.sh       List and restore backups
+│   └── cron.sh                 List, inspect, and trigger cron jobs
 └── secrets/
     └── secrets.example.yaml    Template for secrets.yaml
 ```
