@@ -139,6 +139,7 @@
       volumes = [
         "grafana-data:/var/lib/grafana"
         "/run/grafana/provisioning:/etc/grafana/provisioning:ro"
+        "/run/grafana/healthchecks-api-key:/etc/grafana/healthchecks-api-key:ro"
       ];
       environment = {
         GF_SECURITY_ADMIN_USER = "admin";
@@ -278,7 +279,7 @@
             apiKeyType = "header";
           };
           secureJsonData = {
-            apiKeyValue = "$__file{/run/grafana/healthchecks-api-key}";
+            apiKeyValue = "$__file{/etc/grafana/healthchecks-api-key}";
           };
         }
       ];
