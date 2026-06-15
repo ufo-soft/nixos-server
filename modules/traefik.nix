@@ -96,6 +96,20 @@
           contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'";
         };
       };
+      # Grafana needs 'unsafe-eval' for plugins like Infinity datasource
+      secure-headers-grafana = {
+        headers = {
+          stsSeconds = 31536000;
+          stsIncludeSubdomains = true;
+          stsPreload = true;
+          forceSTSHeader = true;
+          contentTypeNosniff = true;
+          frameDeny = true;
+          browserXssFilter = true;
+          referrerPolicy = "strict-origin-when-cross-origin";
+          contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://healthchecks:8000; frame-ancestors 'none'";
+        };
+      };
       # Stricter rate limit for authentication endpoints
       rate-limit-auth = {
         rateLimit = {

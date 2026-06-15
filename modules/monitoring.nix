@@ -157,7 +157,7 @@
         "traefik.http.routers.grafana.rule" = "Host(`grafana.timothymarias.com`)";
         "traefik.http.routers.grafana.entrypoints" = "websecure";
         "traefik.http.routers.grafana.tls" = "true";
-        "traefik.http.routers.grafana.middlewares" = "secure-headers@file";
+        "traefik.http.routers.grafana.middlewares" = "secure-headers-grafana@file";
         "traefik.http.services.grafana.loadbalancer.server.port" = "3000";
       };
     };
