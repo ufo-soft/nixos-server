@@ -315,8 +315,18 @@
         chmod 600 /run/grafana/env
 
         # Healthchecks API key for Grafana Infinity datasource
-        cp ${config.sops.secrets."healthchecks/api-key".path} /run/grafana/healthchecks-api-key
-        chmod 600 /run/grafana/healthchecks-api-key
+        # Written to /var/lib/healthchecks/api-key after first login:
+        #   echo -n "<key>" | sudo tee /var/lib/healthchecks/api-key
+        #   sudo systemctl restart grafana-env docker-grafana
+        HC_KEY="/var/lib/healthchecks/api-key"
+        if [ -f "$HC_KEY" ]; then
+          cp "$HC_KEY" /run/grafana/healthchecks-api-key
+          chmod 600 /run/grafana/healthchecks-api-key
+        else
+          echo "WARNING: $HC_KEY not found — Healthchecks datasource will not work until API key is set"
+          echo "placeholder" > /run/grafana/healthchecks-api-key
+          chmod 600 /run/grafana/healthchecks-api-key
+        fi
 
         # Datasource provisioning
         cp ${datasourcesConfig} /run/grafana/provisioning/datasources/datasources.yaml

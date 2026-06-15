@@ -113,11 +113,6 @@
         owner = "root";
       };
 
-      "healthchecks/api-key" = {
-        owner = "root";
-        restartUnits = [ "grafana-env.service" "docker-grafana.service" ];
-      };
-
       "root-password" = {
         owner = "root";
         neededForUsers = true;
