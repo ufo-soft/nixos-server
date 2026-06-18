@@ -30,6 +30,8 @@
     ./apps/personal/home-cooking.nix
 
     # Apps — ufo-soft
+    ./apps/ufo-soft/lupin-api-production.nix
+    ./apps/ufo-soft/lupin-api-staging.nix
   ];
 
   boot.loader.systemd-boot.enable = true;
