@@ -129,12 +129,12 @@ in
     };
   };
 
-  # Generate static auth file containing only the PgBouncer lookup user.
+  # Write the pgbouncer lookup user's plaintext password to the auth file.
+  # Must be plaintext (not SCRAM hash) so PgBouncer can authenticate to Postgres for auth_query.
   # All app users are resolved dynamically via auth_query — no regeneration needed.
   systemd.services.pgbouncer-auth = {
     description = "Generate PgBouncer auth file for lookup user";
-    after = [ "db-passwords.service" "sops-nix.service" ];
-    requires = [ "db-passwords.service" ];
+    after = [ "sops-nix.service" ];
     before = [ "pgbouncer.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
@@ -142,12 +142,9 @@ in
       RemainAfterExit = true;
       RuntimeDirectory = "pgbouncer-auth";
       RuntimeDirectoryMode = "0755";
-      ExecStart = let
-        psql = "${config.services.postgresql.package}/bin/psql";
-      in pkgs.writeShellScript "pgbouncer-auth" ''
-        ${pkgs.sudo}/bin/sudo -u postgres ${psql} -Atc \
-          "SELECT concat('\"', usename, '\" \"', passwd, '\"') FROM pg_shadow WHERE usename = 'pgbouncer';" \
-          > /run/pgbouncer-auth/userlist.txt
+      ExecStart = pkgs.writeShellScript "pgbouncer-auth" ''
+        PGB_PASS="$(cat ${config.sops.secrets."pgbouncer/lookup-password".path})"
+        echo "\"pgbouncer\" \"$PGB_PASS\"" > /run/pgbouncer-auth/userlist.txt
         chmod 640 /run/pgbouncer-auth/userlist.txt
         chgrp pgbouncer /run/pgbouncer-auth/userlist.txt
       '';
