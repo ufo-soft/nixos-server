@@ -2,7 +2,7 @@
 # App Template — copy this file and fill in the TODOs.
 #
 # Checklist for adding a new app:
-#   1. Copy this file to apps/<your-app>.nix
+#   1. Copy this file to apps/<namespace>/<your-app>.nix (e.g. apps/personal/ or apps/ufo-soft/)
 #   2. Fill in appName, domain, and GitHub org below
 #   3. Add environment variables and secrets (see comments below)
 #   4. Add a database entry to modules/postgresql.nix (appDatabases list):

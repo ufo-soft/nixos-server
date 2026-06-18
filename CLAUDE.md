@@ -49,13 +49,13 @@ sops secrets/secrets.yaml
 - **flake.nix** — Entry point. Pins nixpkgs (by commit hash) + sops-nix inputs, defines single `nixosConfigurations.server` output.
 - **configuration.nix** — Top-level imports only. Add new app imports here.
 - **modules/** — Each file owns one concern (base, ssh, firewall, hardening, secrets, docker, postgresql, traefik, monitoring, cron, backups).
-- **apps/** — One file per app container. `_template.nix` is the canonical starting point.
+- **apps/** — One file per app container, organized by namespace (`personal/`, `ufo-soft/`). `_template.nix` is the canonical starting point.
 - **secrets/** — sops-nix encrypted secrets (age keys). `.sops.yaml` has key config.
 - **scripts/** — Operational helpers (deploy, db-create, backup-restore, cron).
 
 ## Adding a New App
 
-1. Copy `apps/_template.nix` to `apps/<name>.nix`
+1. Copy `apps/_template.nix` to `apps/<namespace>/<name>.nix` (e.g. `apps/personal/` or `apps/ufo-soft/`)
 2. Fill in `appName`, `domain`, `imageSha`, `ghOrg`
 3. Add database entry to the `appDatabases` list in `modules/postgresql.nix`
 4. Import the new file in `configuration.nix`

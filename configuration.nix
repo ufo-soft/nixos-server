@@ -25,9 +25,11 @@
     # Hardware
     ./modules/ups.nix  # disabled by default; enable with services.ups.enable = true
 
-    # Apps — add new app imports here
-    ./apps/family-archive.nix
-    ./apps/home-cooking.nix
+    # Apps — personal
+    ./apps/personal/family-archive.nix
+    ./apps/personal/home-cooking.nix
+
+    # Apps — ufo-soft
   ];
 
   boot.loader.systemd-boot.enable = true;
