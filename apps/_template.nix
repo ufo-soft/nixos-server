@@ -137,5 +137,11 @@ in
     bindsTo = [
       "${appName}-env.service"
     ];
+    serviceConfig = {
+      # Survive transient PgBouncer/network blips on boot
+      RestartSec = "5s";
+      StartLimitBurst = 10;
+      StartLimitIntervalSec = "120s";
+    };
   };
 }

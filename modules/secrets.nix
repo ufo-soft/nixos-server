@@ -128,6 +128,12 @@
         owner = "root";
         restartUnits = [ "db-passwords.service" "home-cooking-env.service" ];
       };
+
+      # PgBouncer lookup user for auth_query
+      "pgbouncer/lookup-password" = {
+        owner = "root";
+        restartUnits = [ "db-passwords.service" "pgbouncer-auth.service" ];
+      };
     };
   };
 }

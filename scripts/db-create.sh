@@ -39,11 +39,7 @@ info "Granting ownership"
 sudo -u postgres psql -c "ALTER DATABASE \"$DB_NAME\" OWNER TO \"$DB_USER\";"
 sudo -u postgres psql -c "REVOKE ALL ON DATABASE \"$DB_NAME\" FROM PUBLIC;"
 
-info "Regenerating PgBouncer auth file..."
-sudo systemctl restart pgbouncer-auth 2>/dev/null && \
-  sudo systemctl restart pgbouncer 2>/dev/null && \
-  info "PgBouncer reloaded" || \
-  warn "PgBouncer not running yet — auth file will be generated on next boot"
+info "PgBouncer will pick up the new user automatically via auth_query"
 
 echo ""
 info "Database created successfully"

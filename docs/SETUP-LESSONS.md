@@ -228,17 +228,11 @@ The basic Netgear router UI may not show port forwarding options. Access the ful
 
 The "Add Custom Service" button may not work (popup blocker or JavaScript issue). Workaround: add a built-in service type (like FTP), then edit it to change the name and port numbers.
 
-## PgBouncer auth_query requires a dedicated user
+## PgBouncer auth_query bootstrap
 
-PgBouncer's `auth_query` setting (looking up passwords from `pg_shadow`) requires PgBouncer to connect to PostgreSQL as a user with access to `pg_shadow`. This creates a circular problem: PgBouncer needs a password to connect, but it needs to connect to look up passwords.
+PgBouncer's `auth_query` looks up app passwords dynamically from `pg_shadow`, so adding a new app doesn't require regenerating any auth files or restarting PgBouncer.
 
-**Fix:** Use `auth_file` instead. A systemd oneshot service (`pgbouncer-auth`) runs after PostgreSQL starts and before PgBouncer starts. It dumps SCRAM hashes from `pg_shadow` into a file that PgBouncer reads directly. No special database user needed.
-
-After changing any database user's password, regenerate the auth file:
-```bash
-sudo systemctl restart pgbouncer-auth
-sudo systemctl restart pgbouncer
-```
+The bootstrap problem (PgBouncer needs a password to connect, but needs to connect to look up passwords) is solved with a minimal static `auth_file` containing only the `pgbouncer` lookup user. All other users are resolved via `auth_query`. The `pgbouncer-auth` oneshot service writes this single-entry file on boot.
 
 ## PgBouncer RuntimeDirectory conflicts
 

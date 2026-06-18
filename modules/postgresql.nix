@@ -71,16 +71,16 @@ in
     );
   };
 
-  # Set database passwords from sops secrets, then regenerate PgBouncer auth.
+  # Set database passwords from sops secrets.
   # Adding a new app only requires:
   #   1. Add entry to appDatabases above
   #   2. Add <app-name>/database-password to sops secrets
-  #   3. Rebuild — passwords are set automatically
+  #   3. Rebuild — passwords are set automatically, PgBouncer resolves them via auth_query
   systemd.services.db-passwords = {
     description = "Set database passwords from sops secrets";
     after = [ "postgresql.service" "sops-nix.service" ];
     requires = [ "postgresql.service" ];
-    before = [ "pgbouncer-auth.service" ];
+    before = [ "pgbouncer.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
@@ -107,16 +107,34 @@ in
             echo "Set password for postgres_exporter"
           fi
         fi
+
+        # PgBouncer lookup user — needs pg_shadow access for auth_query
+        PGB_PASS="$(cat ${config.sops.secrets."pgbouncer/lookup-password".path} 2>/dev/null || true)"
+        if [ -n "$PGB_PASS" ]; then
+          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "
+            DO \$\$
+            BEGIN
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'pgbouncer') THEN
+                CREATE USER pgbouncer WITH PASSWORD '$PGB_PASS';
+              ELSE
+                ALTER USER pgbouncer WITH PASSWORD '$PGB_PASS';
+              END IF;
+            END
+            \$\$;
+          " 2>/dev/null
+          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "GRANT SELECT ON pg_shadow TO pgbouncer;" 2>/dev/null
+          echo "Set password for pgbouncer lookup user"
+        fi
       '';
     };
   };
 
-  # Generate PgBouncer auth file from PostgreSQL password hashes
-  # Reload PgBouncer after so it picks up new credentials immediately
+  # Generate static auth file containing only the PgBouncer lookup user.
+  # All app users are resolved dynamically via auth_query — no regeneration needed.
   systemd.services.pgbouncer-auth = {
-    description = "Generate PgBouncer userlist.txt from pg_shadow";
-    after = [ "postgresql.service" "db-passwords.service" ];
-    requires = [ "postgresql.service" "db-passwords.service" ];
+    description = "Generate PgBouncer auth file for lookup user";
+    after = [ "db-passwords.service" "sops-nix.service" ];
+    requires = [ "db-passwords.service" ];
     before = [ "pgbouncer.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
@@ -126,20 +144,23 @@ in
       RuntimeDirectoryMode = "0755";
       ExecStart = let
         psql = "${config.services.postgresql.package}/bin/psql";
-        sqlFile = pkgs.writeText "pgbouncer-auth.sql" ''
-          SELECT concat('"', usename, '" "', passwd, '"') FROM pg_shadow WHERE passwd IS NOT NULL;
-        '';
       in pkgs.writeShellScript "pgbouncer-auth" ''
-        ${pkgs.sudo}/bin/sudo -u postgres ${psql} -Atf ${sqlFile} > /run/pgbouncer-auth/userlist.txt
+        ${pkgs.sudo}/bin/sudo -u postgres ${psql} -Atc \
+          "SELECT concat('\"', usename, '\" \"', passwd, '\"') FROM pg_shadow WHERE usename = 'pgbouncer';" \
+          > /run/pgbouncer-auth/userlist.txt
         chmod 640 /run/pgbouncer-auth/userlist.txt
         chgrp pgbouncer /run/pgbouncer-auth/userlist.txt
-        # Signal PgBouncer to reload auth file (graceful, no connection drop)
-        ${pkgs.procps}/bin/pkill -HUP pgbouncer || true
       '';
     };
   };
 
   # --- PgBouncer ---
+
+  # PgBouncer must start after Docker so the docker0 bridge (172.17.0.1) exists
+  systemd.services.pgbouncer = {
+    after = [ "docker.service" ];
+    requires = [ "docker.service" ];
+  };
 
   services.pgbouncer = {
     enable = true;
@@ -156,6 +177,8 @@ in
 
         auth_type = "scram-sha-256";
         auth_file = "/run/pgbouncer-auth/userlist.txt";
+        auth_user = "pgbouncer";
+        auth_query = "SELECT usename, passwd FROM pg_shadow WHERE usename=$1";
         ignore_startup_parameters = "extra_float_digits";
       };
 

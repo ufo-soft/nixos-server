@@ -66,5 +66,10 @@ in
     bindsTo = [
       "${appName}-env.service"
     ];
+    serviceConfig = {
+      RestartSec = "5s";
+      StartLimitBurst = 10;
+      StartLimitIntervalSec = "120s";
+    };
   };
 }
