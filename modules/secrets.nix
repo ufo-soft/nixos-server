@@ -134,6 +134,7 @@
         owner = "root";
         restartUnits = [ "db-passwords.service" "pgbouncer-auth.service" ];
       };
+
     };
   };
 }

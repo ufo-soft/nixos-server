@@ -232,7 +232,12 @@ The "Add Custom Service" button may not work (popup blocker or JavaScript issue)
 
 PgBouncer's `auth_query` looks up app passwords dynamically from `pg_shadow`, so adding a new app doesn't require regenerating any auth files or restarting PgBouncer.
 
-The bootstrap problem (PgBouncer needs a password to connect, but needs to connect to look up passwords) is solved with a minimal static `auth_file` containing only the `pgbouncer` lookup user. All other users are resolved via `auth_query`. The `pgbouncer-auth` oneshot service writes this single-entry file on boot.
+The bootstrap problem (PgBouncer needs a password to connect, but needs to connect to look up passwords) is solved with a minimal static `auth_file` containing only the `pgbouncer` lookup user's plaintext password. All other users are resolved via `auth_query`.
+
+Key details:
+- `auth_dbname = postgres` — PgBouncer only connects to the `postgres` database for lookups, avoiding per-database permission issues.
+- `pg_shadow` access uses a `SECURITY DEFINER` function (`public.pgbouncer_get_auth`) owned by the postgres superuser. The `pgbouncer` user only has `EXECUTE` on this function, not direct `pg_shadow` access.
+- The auth file must contain the **plaintext** password (not the SCRAM hash), because PgBouncer uses it as a client credential to authenticate against Postgres's SCRAM challenge.
 
 ## PgBouncer RuntimeDirectory conflicts
 

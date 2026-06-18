@@ -71,16 +71,16 @@ in
     );
   };
 
-  # Set database passwords from sops secrets.
+  # Set database passwords from sops secrets and configure PgBouncer auth_query.
   # Adding a new app only requires:
   #   1. Add entry to appDatabases above
   #   2. Add <app-name>/database-password to sops secrets
-  #   3. Rebuild — passwords are set automatically, PgBouncer resolves them via auth_query
+  #   3. Rebuild — PgBouncer resolves new users dynamically via auth_query
   systemd.services.db-passwords = {
-    description = "Set database passwords from sops secrets";
+    description = "Set database passwords and configure PgBouncer auth";
     after = [ "postgresql.service" "sops-nix.service" ];
     requires = [ "postgresql.service" ];
-    before = [ "pgbouncer.service" ];
+    before = [ "pgbouncer-auth.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
@@ -88,6 +88,7 @@ in
       ExecStart = let
         psql = "${config.services.postgresql.package}/bin/psql";
       in pkgs.writeShellScript "db-passwords" ''
+        # Set app passwords
         ${lib.concatMapStringsSep "\n" (app: ''
           PASS="$(cat ${config.sops.secrets."${app.name}/database-password".path} 2>/dev/null || true)"
           if [ -n "$PASS" ]; then
@@ -99,7 +100,6 @@ in
         # Postgres exporter monitoring user
         EXPORTER_DSN="$(cat ${config.sops.secrets."postgres-exporter-dsn".path} 2>/dev/null || true)"
         if [ -n "$EXPORTER_DSN" ]; then
-          # Extract password from DSN (format: postgresql://user:pass@host:port/db)
           EXPORTER_PASS="$(echo "$EXPORTER_DSN" | ${pkgs.gnused}/bin/sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')"
           if [ -n "$EXPORTER_PASS" ]; then
             ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "ALTER USER postgres_exporter WITH PASSWORD '$EXPORTER_PASS';" 2>/dev/null
@@ -108,7 +108,7 @@ in
           fi
         fi
 
-        # PgBouncer lookup user — needs pg_shadow access for auth_query
+        # PgBouncer lookup user + auth_query function
         PGB_PASS="$(cat ${config.sops.secrets."pgbouncer/lookup-password".path} 2>/dev/null || true)"
         if [ -n "$PGB_PASS" ]; then
           ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "
@@ -122,19 +122,32 @@ in
             END
             \$\$;
           " 2>/dev/null
-          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "GRANT SELECT ON pg_shadow TO pgbouncer;" 2>/dev/null
-          echo "Set password for pgbouncer lookup user"
+
+          # SECURITY DEFINER function runs as postgres (superuser), so the
+          # pgbouncer user doesn't need direct access to pg_shadow.
+          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "
+            CREATE OR REPLACE FUNCTION public.pgbouncer_get_auth(p_usename TEXT)
+            RETURNS TABLE(usename name, passwd text) AS
+            \$\$
+              SELECT usename, passwd FROM pg_shadow WHERE usename = p_usename;
+            \$\$
+            LANGUAGE sql SECURITY DEFINER STABLE;
+          " 2>/dev/null
+
+          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "REVOKE ALL ON FUNCTION public.pgbouncer_get_auth(TEXT) FROM PUBLIC;" 2>/dev/null
+          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "GRANT EXECUTE ON FUNCTION public.pgbouncer_get_auth(TEXT) TO pgbouncer;" 2>/dev/null
+          echo "Configured pgbouncer auth_query user and function"
         fi
       '';
     };
   };
 
   # Write the pgbouncer lookup user's plaintext password to the auth file.
-  # Must be plaintext (not SCRAM hash) so PgBouncer can authenticate to Postgres for auth_query.
-  # All app users are resolved dynamically via auth_query — no regeneration needed.
+  # Only this one user is in the file — all app users are resolved via auth_query.
   systemd.services.pgbouncer-auth = {
     description = "Generate PgBouncer auth file for lookup user";
-    after = [ "sops-nix.service" ];
+    after = [ "db-passwords.service" "sops-nix.service" ];
+    requires = [ "db-passwords.service" ];
     before = [ "pgbouncer.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
@@ -175,7 +188,8 @@ in
         auth_type = "scram-sha-256";
         auth_file = "/run/pgbouncer-auth/userlist.txt";
         auth_user = "pgbouncer";
-        auth_query = "SELECT usename, passwd FROM pg_shadow WHERE usename=$1";
+        auth_dbname = "postgres";
+        auth_query = "SELECT usename, passwd FROM public.pgbouncer_get_auth($1)";
         ignore_startup_parameters = "extra_float_digits";
       };
 
