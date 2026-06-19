@@ -7,6 +7,8 @@ let
     { name = "family-archive"; user = "family_archive"; dbName = "family_archive"; }
     { name = "home-cooking"; user = "home_cooking"; dbName = "home_cooking"; }
     { name = "healthchecks"; user = "healthchecks"; dbName = "healthchecks"; }
+    { name = "lupin-api-production"; user = "lupin_production"; dbName = "lupin_production"; }
+    { name = "lupin-api-staging"; user = "lupin_staging"; dbName = "lupin_staging"; }
   ];
 
   # Docker bridge subnet — containers connect from this range.

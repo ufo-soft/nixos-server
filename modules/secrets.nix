@@ -129,6 +129,17 @@
         restartUnits = [ "db-passwords.service" "home-cooking-env.service" ];
       };
 
+      # lupin-api (ufo-soft)
+      "lupin-api-production/database-password" = {
+        owner = "root";
+        restartUnits = [ "db-passwords.service" "lupin-api-production-env.service" ];
+      };
+
+      "lupin-api-staging/database-password" = {
+        owner = "root";
+        restartUnits = [ "db-passwords.service" "lupin-api-staging-env.service" ];
+      };
+
       # PgBouncer lookup user for auth_query
       "pgbouncer/lookup-password" = {
         owner = "root";

@@ -5,7 +5,8 @@ let
   # Each entry needs the full record name and the Cloudflare zone (domain).
   dnsRecords = [
     { name = "server.timothymarias.com"; zone = "timothymarias.com"; }
-    # { name = "app.otherdomain.com"; zone = "otherdomain.com"; }
+    { name = "lupin-api-production.timothymarias.com"; zone = "timothymarias.com"; }
+    { name = "lupin-api-staging.timothymarias.com"; zone = "timothymarias.com"; }
   ];
 
   ddnsScript = pkgs.writeShellScript "cloudflare-ddns" ''

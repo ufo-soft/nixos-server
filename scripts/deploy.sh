@@ -29,10 +29,10 @@ usage() {
 
 APP_NAME="$1"
 NEW_SHA="$2"
-APP_FILE="$NIXOS_DIR/apps/$APP_NAME.nix"
+APP_FILE=$(find "$NIXOS_DIR/apps" -name "${APP_NAME}.nix" -not -name '_template.nix' | head -1)
 SHA_FILE="$DEPLOY_DIR/$APP_NAME.sha"
 
-[[ ! -f "$APP_FILE" ]] && error "App file not found: $APP_FILE"
+[[ -z "$APP_FILE" ]] && error "App file not found for: $APP_NAME"
 
 # Validate SHA format
 [[ ! "$NEW_SHA" =~ ^sha256:[a-f0-9]{64}$ ]] && error "Invalid SHA format. Expected: sha256:<64 hex chars>"
