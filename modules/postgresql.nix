@@ -81,7 +81,7 @@ in
   systemd.services.db-passwords = {
     description = "Set database passwords and configure PgBouncer auth";
     after = [ "postgresql.service" "sops-nix.service" ];
-    requires = [ "postgresql.service" ];
+    requires = [ "postgresql.service" "sops-nix.service" ];
     before = [ "pgbouncer-auth.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
@@ -92,11 +92,9 @@ in
       in pkgs.writeShellScript "db-passwords" ''
         # Set app passwords
         ${lib.concatMapStringsSep "\n" (app: ''
-          PASS="$(cat ${config.sops.secrets."${app.name}/database-password".path} 2>/dev/null || true)"
-          if [ -n "$PASS" ]; then
-            ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "ALTER USER ${app.user} WITH PASSWORD '$PASS';" 2>/dev/null
-            echo "Set password for ${app.user}"
-          fi
+          PASS="$(cat ${config.sops.secrets."${app.name}/database-password".path})"
+          ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "ALTER USER ${app.user} WITH PASSWORD '$PASS';"
+          echo "Set password for ${app.user}"
         '') appDatabases}
 
         # Postgres exporter monitoring user
