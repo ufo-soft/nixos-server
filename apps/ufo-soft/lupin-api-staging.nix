@@ -15,7 +15,6 @@ in
     environment = {
       OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317";
       OTEL_SERVICE_NAME = appName;
-      # TODO: create check in Healthchecks and fill in UUID
       YTDLP_UPDATE_PING_URL = "http://healthchecks:8000/ping/2dfcecc6-cbe0-40a2-b5ef-5d14c48bf5d0";
     };
 
