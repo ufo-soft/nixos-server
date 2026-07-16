@@ -1,6 +1,6 @@
 # NixOS Server Configuration
 
-Declarative NixOS configuration for a self-hosted server running Kotlin/Ktor backends as Docker containers (GraalVM native images from GHCR) behind Traefik, with PostgreSQL + PgBouncer, and a full observability stack.
+Declarative NixOS configuration for a self-hosted server running containerized apps (images pulled from GHCR) behind Traefik, with PostgreSQL + PgBouncer, and a full observability stack. Apps are stack-agnostic — anything that ships as a Docker image works.
 
 ## What You Need Before Starting
 
@@ -241,7 +241,7 @@ Internet → Cloudflare (proxy / DDoS / WAF — terminates public TLS)
           |    └─ grafana.foo.com      → grafana:3000
           |
           ├─ App containers (isolated Docker networks)
-          |    └─ GraalVM native images pulled from GHCR
+          |    └─ Images pulled from GHCR, pinned by digest
           |
           ├─ PostgreSQL (NixOS-managed, single instance)
           |    ├─ PgBouncer (connection pooling, bound to localhost + Docker bridge)
@@ -443,7 +443,7 @@ Layer 4  Kernel            sysctl hardening (syncookies, no redirects, rp_filter
 Layer 5  Traefik           Origin CA TLS (Cloudflare ↔ server), HSTS, CSP, rate limiting, ForwardAuth
 Layer 6  Docker            Socket proxy (restricted API), apps isolated from each other
 Layer 7  Auth service      JWT validation via Traefik ForwardAuth middleware
-Layer 8  App-level         Authorization logic in your Kotlin code
+Layer 8  App-level         Authorization logic in your application code
 Layer 9  PostgreSQL        Per-app user, scoped pg_hba.conf, no cross-db access
 Layer 10 PgBouncer         Bound to localhost + Docker bridge only
 Layer 11 Secrets           Encrypted at rest via sops-nix (age), decrypted at boot

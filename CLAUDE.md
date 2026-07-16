@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Declarative NixOS configuration for a self-hosted server running Kotlin/Ktor backends as Docker containers (GraalVM native images from GHCR) behind Traefik, with PostgreSQL + PgBouncer, and a full observability stack.
+Declarative NixOS configuration for a self-hosted server running containerized apps (images pulled from GHCR) behind Traefik, with PostgreSQL + PgBouncer, and a full observability stack. Apps are stack-agnostic — anything that ships as a Docker image works.
 
 ## Key Commands
 
