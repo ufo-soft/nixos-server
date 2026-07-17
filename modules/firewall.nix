@@ -8,7 +8,8 @@
     allowedUDPPorts = [];
 
     # Block Docker containers from reaching the home LAN.
-    # Allow containers to reach PgBouncer (6432) and allow established connections (for docker-proxy).
+    # Allow containers to reach PgBouncer (6432), Redis cache (6379), Redis
+    # queue (6380), and allow established connections (for docker-proxy).
     extraCommands = ''
       # Block containers from initiating connections to the home LAN, but allow responses
       iptables -C FORWARD -s 172.16.0.0/12 -d 192.168.0.0/16 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
@@ -29,6 +30,15 @@
       iptables -C INPUT -s 172.16.0.0/12 -p tcp --dport 6432 -j ACCEPT 2>/dev/null || \
         iptables -I INPUT -s 172.16.0.0/12 -p tcp --dport 6432 -j ACCEPT
 
+      # Redis cache (6379) and queue (6380) — same pattern as PgBouncer above.
+      # Redis itself binds only to loopback + the docker gateway, so this
+      # opens nothing to the LAN; it only permits the container bridge range.
+      iptables -C INPUT -s 172.16.0.0/12 -p tcp --dport 6379 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -s 172.16.0.0/12 -p tcp --dport 6379 -j ACCEPT
+
+      iptables -C INPUT -s 172.16.0.0/12 -p tcp --dport 6380 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -s 172.16.0.0/12 -p tcp --dport 6380 -j ACCEPT
+
       iptables -C INPUT -s 172.16.0.0/12 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
         iptables -I INPUT -s 172.16.0.0/12 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     '';
@@ -38,6 +48,8 @@
       iptables -D FORWARD -s 172.16.0.0/12 -d 192.168.0.0/16 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
       iptables -D INPUT -s 172.16.0.0/12 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
       iptables -D INPUT -s 172.16.0.0/12 -p tcp --dport 6432 -j ACCEPT 2>/dev/null || true
+      iptables -D INPUT -s 172.16.0.0/12 -p tcp --dport 6379 -j ACCEPT 2>/dev/null || true
+      iptables -D INPUT -s 172.16.0.0/12 -p tcp --dport 6380 -j ACCEPT 2>/dev/null || true
       iptables -D INPUT -s 172.16.0.0/12 -p tcp -m conntrack --ctstate NEW -j LOG --log-prefix "iptables-docker-drop: " --log-level 4 2>/dev/null || true
       iptables -D INPUT -s 172.16.0.0/12 -p tcp -j DROP 2>/dev/null || true
     '';

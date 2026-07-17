@@ -3,6 +3,11 @@
 let
   # Central app database registry.
   # Add one entry per app. Each gets a dedicated database + user.
+  #
+  # This list is exported as `config.appDatabases` at the bottom of this file
+  # so other modules (notably backups.nix) can derive from it rather than
+  # keeping a hand-synced copy. Add an app here and it is backed up
+  # automatically.
   appDatabases = [
     { name = "family-archive"; user = "family_archive"; dbName = "family_archive"; }
     { name = "home-cooking"; user = "home_cooking"; dbName = "home_cooking"; }
@@ -16,6 +21,18 @@ let
   dockerSubnet = "172.18.0.0/16"; # TODO: verify after network creation
 in
 {
+  # Export the app database registry so other modules can derive from it.
+  # Read-only: this is the single source of truth for which databases exist.
+  options.appDatabases = lib.mkOption {
+    type = lib.types.listOf (lib.types.attrsOf lib.types.str);
+    readOnly = true;
+    description = "Central registry of per-app PostgreSQL databases.";
+  };
+
+  config = {
+
+  appDatabases = appDatabases;
+
   # --- PostgreSQL ---
 
   services.postgresql = {
@@ -202,4 +219,5 @@ in
     };
   };
 
+  };
 }
