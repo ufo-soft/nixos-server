@@ -57,8 +57,9 @@
       };
 
       # family-archive app secrets
-      "family-archive/session-secret" = {
+      "family-archive/app-key" = {
         owner = "root";
+        restartUnits = [ "family-archive-env.service" ];
       };
 
       "family-archive/admin-email" = {
@@ -66,6 +67,10 @@
       };
 
       "family-archive/admin-password" = {
+        owner = "root";
+      };
+
+      "family-archive/admin-name" = {
         owner = "root";
       };
 

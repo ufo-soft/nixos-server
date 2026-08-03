@@ -12,12 +12,20 @@ in
     image = "ghcr.io/${ghOrg}/${appName}@${imageSha}";
 
     environment = {
-      # Storage — S3 for images (credentials in env file)
-      STORAGE_TYPE = "s3";
+      # AdonisJS runtime
+      NODE_ENV = "production";
+      HOST = "0.0.0.0";
+      PORT = appPort;
+      TZ = "UTC";
+      LOG_LEVEL = "info";
+      SESSION_DRIVER = "cookie";
 
-      # OpenTelemetry
-      OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317";
-      OTEL_SERVICE_NAME = appName;
+      # Storage — S3 for images (credentials in env file)
+      DRIVE_DISK = "s3";
+
+      # OpenTelemetry — disabled for now
+      # OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317";
+      # OTEL_SERVICE_NAME = appName;
     };
 
     # Secrets injected as env vars from sops-decrypted file
@@ -54,11 +62,12 @@ in
         DB_PASS="$(cat ${config.sops.secrets."family-archive/database-password".path})"
         {
           echo "DATABASE_URL=postgres://family_archive:''${DB_PASS}@host.docker.internal:6432/family_archive?sslmode=disable"
-          echo "SESSION_SECRET=$(cat ${config.sops.secrets."family-archive/session-secret".path})"
+          echo "APP_KEY=$(cat ${config.sops.secrets."family-archive/app-key".path})"
           echo "ADMIN_EMAIL=$(cat ${config.sops.secrets."family-archive/admin-email".path})"
           echo "ADMIN_PASSWORD=$(cat ${config.sops.secrets."family-archive/admin-password".path})"
+          echo "ADMIN_NAME=$(cat ${config.sops.secrets."family-archive/admin-name".path})"
           echo "S3_BUCKET=$(cat ${config.sops.secrets."family-archive/s3-bucket".path})"
-          echo "S3_REGION=$(cat ${config.sops.secrets."family-archive/s3-region".path})"
+          echo "AWS_REGION=$(cat ${config.sops.secrets."family-archive/s3-region".path})"
           echo "AWS_ACCESS_KEY_ID=$(cat ${config.sops.secrets."family-archive/aws-access-key-id".path})"
           echo "AWS_SECRET_ACCESS_KEY=$(cat ${config.sops.secrets."family-archive/aws-secret-access-key".path})"
         } > /run/${appName}/env
