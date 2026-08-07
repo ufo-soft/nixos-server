@@ -10,6 +10,13 @@ let
   # which silently left every other app unbacked.)
   databases = map (app: app.dbName) config.appDatabases;
 
+  # The Redis backup units are only meaningful when the queue instance is
+  # actually configured (modules/redis.nix). Defining them unconditionally
+  # builds a timer whose Requires= names a unit that does not exist, which
+  # fails activation with "Unit redis-queue.service not found" and takes the
+  # whole nixos-rebuild switch down with it (exit 4).
+  redisQueueEnabled = config.services.redis.servers ? queue;
+
   pgBackupScript = pkgs.writeShellScript "pg-backup" ''
     set -euo pipefail
     DATE=$(date +%Y-%m-%d_%H%M%S)
@@ -132,7 +139,7 @@ in
   #
   # Runs as redis-queue (not root) so it can read the data dir and talk to
   # the instance without app ACL restrictions applying.
-  systemd.services.redis-backup = {
+  systemd.services.redis-backup = lib.mkIf redisQueueEnabled {
     description = "Redis queue backup";
     after = [ "redis-queue.service" ];
     requires = [ "redis-queue.service" ];
@@ -143,7 +150,7 @@ in
     };
   };
 
-  systemd.timers.redis-backup = {
+  systemd.timers.redis-backup = lib.mkIf redisQueueEnabled {
     description = "Daily Redis queue backup timer";
     wantedBy = [ "timers.target" ];
     timerConfig = {
