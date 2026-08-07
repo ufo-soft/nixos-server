@@ -115,6 +115,23 @@ let
   '';
 in
 {
+  # /var/backups is root-owned, but the backup services run unprivileged
+  # (pg-backup as postgres, redis-backup as redis-queue) so that each can read
+  # its own data directory without root. An unprivileged `mkdir -p` inside a
+  # root-owned directory fails with EACCES, so create each subdirectory here
+  # with the right owner instead of relying on the scripts to do it.
+  #
+  # pg-backup only ever worked because /var/backups/postgresql already existed
+  # from an earlier run; on a fresh machine it would have failed the same way
+  # redis-backup did the first time redis.nix was imported.
+  systemd.tmpfiles.rules = [
+    "d ${backupDir} 0755 root root -"
+    "d ${backupDir}/postgresql 0750 postgres postgres -"
+    "d ${backupDir}/volumes 0750 root root -"
+  ] ++ lib.optionals redisQueueEnabled [
+    "d ${backupDir}/redis 0750 redis-queue redis-queue -"
+  ];
+
   # Daily PostgreSQL backup at 3 AM
   systemd.services.pg-backup = {
     description = "PostgreSQL database backup";
