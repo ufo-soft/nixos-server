@@ -79,6 +79,14 @@
         restartUnits = [ "db-passwords.service" "family-archive-env.service" ];
       };
 
+      # Redis ACL password for the family_archive user on the queue instance.
+      # redis-queue.service regenerates its ACL file as an ExecStartPre, so it
+      # must restart alongside the app's env generator when this rotates.
+      "family-archive/redis-password" = {
+        owner = "root";
+        restartUnits = [ "family-archive-env.service" "redis-queue.service" ];
+      };
+
       "family-archive/s3-bucket" = {
         owner = "root";
       };

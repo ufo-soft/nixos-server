@@ -9,6 +9,10 @@ let
   # `user` is the ACL username (snake_case, mirrors postgresql.nix convention).
   # `prefix` is the key namespace the app is allowed to touch.
   redisApps = [
+    # NOTE: `prefix` is load-bearing on the app side too — the generated ACL
+    # confines the user to `<prefix>:*` keys AND channels, so BullMQ must be
+    # constructed with a matching `prefix` option (its default is `bull`).
+    { name = "family-archive"; user = "family_archive"; prefix = "family-archive"; }
     # { name = "home-cooking"; user = "home_cooking"; prefix = "home-cooking"; }
   ];
 
@@ -29,12 +33,21 @@ let
   #   +@all -@dangerous   — all commands except the dangerous set
   #                         (-@dangerous removes FLUSHALL, CONFIG, SHUTDOWN,
   #                          KEYS, DEBUG, REPLICAOF, ACL, etc.)
+  #   +info               — see below
   #
   # NOTE: -@dangerous also removes CLUSTER, MIGRATE, and RESTORE. If an app
   # ever needs one of those, add it back explicitly (+command) rather than
   # dropping the -@dangerous rule wholesale.
+  #
+  # WHY +info: INFO is in @dangerous, but BullMQ issues INFO on every connection
+  # to detect the server version. Without this exception the client fails at
+  # connect time — before any job is enqueued — with
+  #   "NOPERM User <u> has no permissions to run the 'info' command"
+  # Verified against Redis 8.8 with this exact rule: EVAL, EVALSHA, SCRIPT and
+  # CLIENT are NOT in @dangerous (so BullMQ's Lua works unaided), but INFO is.
+  # KEYS stays denied — BullMQ uses SCAN, never KEYS.
   mkAclUser = app: password:
-    "user ${app.user} on >${password} ~${app.prefix}:* &${app.prefix}:* +@all -@dangerous";
+    "user ${app.user} on >${password} ~${app.prefix}:* &${app.prefix}:* +@all -@dangerous +info";
 
   # Generate the ACL file for an instance from the app registry.
   # Passwords are read from sops at runtime, so this is a script that emits

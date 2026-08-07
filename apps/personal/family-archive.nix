@@ -60,8 +60,15 @@ in
       ExecStart = pkgs.writeShellScript "${appName}-env" ''
         mkdir -p /run/${appName}
         DB_PASS="$(cat ${config.sops.secrets."family-archive/database-password".path})"
+        # Port 6380 is the `queue` instance (noeviction + AOF), NOT 6379 (`cache`,
+        # allkeys-lru) — the cache instance would evict queued jobs under pressure.
+        # Percent-encode the password so URL-special characters survive parsing.
+        # $(cat) strips any trailing newline first — jq -sRr would otherwise
+        # encode it as a literal %0A and the AUTH would fail.
+        REDIS_PASS="$(printf %s "$(cat ${config.sops.secrets."family-archive/redis-password".path})" | ${pkgs.jq}/bin/jq -sRr @uri)"
         {
           echo "DATABASE_URL=postgres://family_archive:''${DB_PASS}@host.docker.internal:6432/family_archive?sslmode=disable"
+          echo "REDIS_URL=redis://family_archive:''${REDIS_PASS}@host.docker.internal:6380"
           echo "APP_KEY=$(cat ${config.sops.secrets."family-archive/app-key".path})"
           echo "ADMIN_EMAIL=$(cat ${config.sops.secrets."family-archive/admin-email".path})"
           echo "ADMIN_PASSWORD=$(cat ${config.sops.secrets."family-archive/admin-password".path})"
@@ -82,6 +89,9 @@ in
       "docker-network-proxy-net.service"
       "${appName}-env.service"
       "pgbouncer.service"
+      # Redis is a hard dependency now: the app starts an in-process BullMQ
+      # worker at boot and every enqueue goes through the queue instance.
+      "redis-queue.service"
     ];
     requires = [
       "docker-network-proxy-net.service"
