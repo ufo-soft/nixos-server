@@ -176,15 +176,23 @@ in
   # A bare assignment would be a merge conflict; this appends to whatever the
   # module already set, and ordering after it is correct — the ACL file only
   # needs to exist before redis-server itself execs.
+  #
+  # `after` only, never `requires`: sops-nix installs secrets from an activation
+  # script, not a unit, so "sops-nix.service" does not exist on this system. A
+  # non-existent unit in `after` is an inert no-op, but in `requires` it is a
+  # hard dependency that systemd cannot satisfy — the instance then fails with
+  # "Unit sops-nix.service not found" and takes redis-backup.timer down with it.
+  # Every other module here uses bare `after` for the same reason.
+  #
+  # Ordering is belt-and-braces regardless: the activation script has already
+  # written the secrets by the time any unit starts.
   systemd.services.redis-cache = {
     after = [ "sops-nix.service" ];
-    requires = [ "sops-nix.service" ];
     serviceConfig.ExecStartPre = lib.mkAfter [ "+${mkAclScript "cache"}" ];
   };
 
   systemd.services.redis-queue = {
     after = [ "sops-nix.service" ];
-    requires = [ "sops-nix.service" ];
     serviceConfig.ExecStartPre = lib.mkAfter [ "+${mkAclScript "queue"}" ];
   };
 
