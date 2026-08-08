@@ -96,6 +96,22 @@
           contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'";
         };
       };
+      # family-archive serves artifact images and media directly from its S3
+      # bucket, so that origin has to be allowed. Keep in sync with the bucket
+      # and region in the app's env (S3_BUCKET / AWS_REGION).
+      secure-headers-family-archive = {
+        headers = {
+          stsSeconds = 31536000;
+          stsIncludeSubdomains = true;
+          stsPreload = true;
+          forceSTSHeader = true;
+          contentTypeNosniff = true;
+          customFrameOptionsValue = "SAMEORIGIN";
+          browserXssFilter = true;
+          referrerPolicy = "strict-origin-when-cross-origin";
+          contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://marias-family-archive.s3.us-east-2.amazonaws.com; media-src 'self' https://marias-family-archive.s3.us-east-2.amazonaws.com; font-src 'self'; connect-src 'self'; frame-ancestors 'self'";
+        };
+      };
       # Grafana needs 'unsafe-eval' for plugins like Infinity datasource
       secure-headers-grafana = {
         headers = {

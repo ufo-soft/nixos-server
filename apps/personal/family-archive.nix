@@ -41,7 +41,7 @@ in
       "traefik.http.routers.${appName}.rule" = "Host(`${domain}`)";
       "traefik.http.routers.${appName}.entrypoints" = "websecure";
       "traefik.http.routers.${appName}.tls" = "true";
-      "traefik.http.routers.${appName}.middlewares" = "rate-limit@file,secure-headers-sameorigin@file";
+      "traefik.http.routers.${appName}.middlewares" = "rate-limit@file,secure-headers-family-archive@file";
       "traefik.http.services.${appName}.loadbalancer.server.port" = appPort;
     };
 
