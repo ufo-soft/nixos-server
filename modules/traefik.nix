@@ -184,6 +184,20 @@
     ];
     # Connect Traefik to monitoring-net so Prometheus can scrape its metrics
     postStart = "${pkgs.docker}/bin/docker network connect monitoring-net traefik 2>/dev/null || true";
+
+    # Both configs are bind-mounted from /etc. NixOS swaps the symlink target
+    # rather than editing in place, which Traefik's file watcher does not
+    # notice, so it keeps serving the previous config until restarted.
+    #
+    # That gap is an outage, not a degradation: a router referencing a
+    # middleware Traefik has not loaded is dropped entirely, and every request
+    # to that host gets Traefik's own 404. Adding a middleware and pointing an
+    # app at it in one rebuild does exactly that — the app's label arrives
+    # instantly via the Docker provider while the definition waits on a reload.
+    restartTriggers = [
+      config.environment.etc."traefik/dynamic.yml".source
+      config.environment.etc."traefik/traefik.yml".source
+    ];
   };
 
   # Write Cloudflare API token to a file Traefik can read

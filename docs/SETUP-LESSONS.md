@@ -258,6 +258,24 @@ providers.file = {
 
 Without this, container labels work (via the Docker provider) but file-defined middlewares like `secure-headers@file` will show "does not exist" errors.
 
+### The same error from a stale in-memory config
+
+That error has a second cause, and this one takes the site down. `dynamic.yml` is bind-mounted from `/etc`, and NixOS swaps the symlink target rather than editing the file in place — which Traefik's file watcher does not notice. It keeps serving the config it loaded at boot.
+
+Adding a middleware and pointing an app at it in the same rebuild hits this every time: the app's label arrives instantly through the Docker provider, while the middleware definition waits on a reload that never comes. Traefik then **drops the router entirely** rather than serving without the middleware, so every request to that host gets Traefik's own bare 404 — an outage, not a degraded page.
+
+The tell is that `grep` finds the middleware in `/etc/traefik/dynamic.yml` while the logs still say it does not exist:
+
+```
+ERR error="middleware \"secure-headers-family-archive@file\" does not exist" routerName=family-archive@docker
+```
+
+`systemd.services.docker-traefik.restartTriggers` now points at both config store paths, so any content change restarts Traefik automatically. To recover by hand:
+
+```
+sudo systemctl restart docker-traefik
+```
+
 ## Nix string interpolation in shell scripts
 
 In Nix's `''...''` strings (used by `writeShellScript`), `${...}` is Nix interpolation. To get a literal shell variable like `${MY_VAR}`, escape it as `''${MY_VAR}`.
