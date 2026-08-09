@@ -20,6 +20,11 @@ in
       LOG_LEVEL = "info";
       SESSION_DRIVER = "cookie";
 
+      # Absolute public base URL, no trailing slash. sitemap.xml and robots.txt
+      # emit absolute URLs, which the request host can't be trusted for behind
+      # Traefik. Env validation fails at boot if this is unset.
+      APP_URL = "https://${domain}";
+
       # Storage — S3 for images (credentials in env file)
       DRIVE_DISK = "s3";
 
