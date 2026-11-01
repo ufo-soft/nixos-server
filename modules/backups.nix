@@ -25,7 +25,7 @@ let
 
     for DB in ${lib.concatStringsSep " " databases}; do
       echo "Backing up database: $DB"
-      ${pkgs.postgresql_16}/bin/pg_dump -U postgres "$DB" \
+      ${config.services.postgresql.package}/bin/pg_dump -U postgres "$DB" \
         | ${pkgs.gzip}/bin/gzip \
         | ${pkgs.gnupg}/bin/gpg --symmetric --batch --yes --passphrase-file ${encKeyPath} \
           -o "$BACKUP_DIR/$DB-$DATE.sql.gz.gpg"
