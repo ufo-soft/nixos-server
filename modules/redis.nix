@@ -12,7 +12,9 @@ let
     # NOTE: `prefix` is load-bearing on the app side too — the generated ACL
     # confines the user to `<prefix>:*` keys AND channels, so BullMQ must be
     # constructed with a matching `prefix` option (its default is `bull`).
-    { name = "family-archive"; user = "family_archive"; prefix = "family-archive"; }
+    # family-archive: re-enable when the Rails app moves to Sidekiq/Redis
+    # (docs/FAMILY-ARCHIVE-CUTOVER.md, "Later"). Solid Queue on SQLite until then.
+    # { name = "family-archive"; user = "family_archive"; prefix = "family-archive"; }
     # { name = "home-cooking"; user = "home_cooking"; prefix = "home-cooking"; }
   ];
 
