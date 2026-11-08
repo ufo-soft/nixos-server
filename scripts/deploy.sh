@@ -71,14 +71,16 @@ fi
 
 info "Container running: $STATUS"
 
-# Health check — try the /health endpoint if Traefik labels are configured
+# Health check — probe the app's health path, read from `healthPath = "..."`
+# in the app file (default /health), if Traefik labels are configured
 DOMAIN=$(grep -oP 'domain\s*=\s*"\K[^"]+' "$APP_FILE" 2>/dev/null || true)
+HEALTH_PATH=$(grep -oP 'healthPath\s*=\s*"\K[^"]+' "$APP_FILE" 2>/dev/null || echo "/health")
 if [[ -n "$DOMAIN" ]]; then
-  info "Checking health at https://${DOMAIN}/health ..."
+  info "Checking health at https://${DOMAIN}${HEALTH_PATH} ..."
   HEALTH_WAIT=15
   HEALTH_OK=false
   for i in $(seq 1 $HEALTH_WAIT); do
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}/health" 2>/dev/null || echo "000")
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}${HEALTH_PATH}" 2>/dev/null || echo "000")
     if [[ "$HTTP_CODE" == "200" ]]; then
       HEALTH_OK=true
       break

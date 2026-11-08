@@ -7,6 +7,8 @@ let
   ghOrg    = "timothyjamesmarias";
   # Thruster fronts Puma inside the image and listens on 80.
   appPort  = "80";
+  # Read by scripts/deploy.sh and health-check.sh; Rails' endpoint is /up.
+  healthPath = "/up";
 in
 {
   virtualisation.oci-containers.containers.${appName} = {
