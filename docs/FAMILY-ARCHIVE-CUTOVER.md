@@ -3,8 +3,8 @@
 Runbook for moving the Rails family-archive app off Render and onto this
 server. Three phases, each independently rollback-able:
 
-1. **Server prep** — upgrade Postgres to 17, destroy the Adonis-era database,
-   rework the app module for Rails.
+1. **Server prep** — upgrade Postgres to 17 (fresh cluster, nothing on the
+   old one is worth keeping), rework the app module for Rails.
 2. **Rehearsal** — restore a live Render dump and run the Rails image against
    it with DNS still pointing at Render.
 3. **Cutover** — freeze Render, final dump, flip Cloudflare.
@@ -21,12 +21,11 @@ bucket under the `production/` prefix and blob keys live in the Rails DB.
 
 Render runs 17. `pg_dump` 16 refuses to connect to a 17 server, so staying on
 16 would mean dumping from a laptop with a 17 client and restoring a
-newer-version dump into an older server. Upgrading is cleaner and lupin
-benefits too.
+newer-version dump into an older server. Upgrading is cleaner.
 
-Every database on this server is small, so dump/restore beats `pg_upgrade`:
-fewer moving parts, and it is the same procedure the backups already use.
-All app containers go down for the duration (minutes).
+Nothing in the 16 cluster needs to survive: lupin is a job queue, healthchecks
+is lupin's heartbeat monitor, home-cooking is being reworked, and the
+family-archive database is the Adonis app's. So there is no data migration.
 
 **Config changes (`modules/postgresql.nix`, `modules/backups.nix`):**
 
@@ -38,50 +37,24 @@ package = pkgs.postgresql_17;
 ${config.services.postgresql.package}/bin/pg_dump ...
 ```
 
-NixOS puts the new cluster at `/var/lib/postgresql/17`; the 16 data dir stays
-on disk until you delete it, which is the rollback.
-
 **Procedure (on the server):**
 
 ```bash
-# 1. Stop everything that talks to Postgres
-sudo systemctl stop docker-home-cooking docker-lupin-api-production \
-  docker-lupin-api-staging docker-healthchecks pgbouncer
-
-# 2. Dump each app DB with the *current* 16 binaries
-sudo -u postgres mkdir -p /var/lib/postgresql/pre17
-for db in home_cooking healthchecks lupin_production lupin_staging; do
-  sudo -u postgres pg_dump -Fc "$db" -f /var/lib/postgresql/pre17/$db.dump
-done
-# family_archive is deliberately not in that list — see 1b.
-
-# 3. Apply the config. postgresql.service starts a fresh 17 cluster and
-#    ensureDatabases/ensureUsers recreate every role and empty database.
-#    db-passwords re-applies passwords from sops.
 sudo nixos-rebuild switch --flake ~/nixos-server#server --impure
-
-# 4. Restore into the ensured databases, owned by each app user
-for pair in home_cooking:home_cooking healthchecks:healthchecks \
-            lupin_production:lupin_production lupin_staging:lupin_staging; do
-  db=${pair%%:*}; role=${pair##*:}
-  sudo -u postgres pg_restore --no-owner --no-privileges --role="$role" \
-    -d "$db" /var/lib/postgresql/pre17/$db.dump
-done
-
-# 5. Bring the apps back and check them
-sudo systemctl start pgbouncer docker-home-cooking docker-lupin-api-production \
-  docker-lupin-api-staging docker-healthchecks
-./scripts/health-check.sh
 ```
 
-**Rollback:** revert the two nix changes, `nixos-rebuild switch`, and the 16
-cluster is exactly where you left it. Once 17 has run clean for a week:
-`sudo rm -rf /var/lib/postgresql/16 /var/lib/postgresql/pre17`.
+NixOS starts a fresh 17 cluster at `/var/lib/postgresql/17`;
+`ensureDatabases`/`ensureUsers` recreate every role and empty database and
+`db-passwords` re-applies the sops passwords. Each app runs its own migrations
+on next boot. Check with `./scripts/health-check.sh`.
+
+The 16 data dir stays on disk untouched. Once 17 is running:
+`sudo rm -rf /var/lib/postgresql/16`.
 
 ### 1b. Destroy the Adonis database
 
-Not dumped in 1a, so the fresh 17 cluster already has an **empty**
-`family_archive` database owned by `family_archive`. Nothing else to do. The
+The fresh 17 cluster already has an **empty** `family_archive` database owned
+by `family_archive`. Nothing else to do. The
 nightly GPG backups of the old DB age out of `/var/backups/postgresql` in 30
 days; delete them sooner if you want (`rm /var/backups/postgresql/family_archive-*`).
 
