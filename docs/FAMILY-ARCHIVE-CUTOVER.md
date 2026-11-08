@@ -142,28 +142,40 @@ Everything here runs against live Render data while Render keeps serving.
 Repeat until it is boring.
 
 ```bash
-# Laptop. Render → Dashboard → family-archive-db → External Database URL.
-# Needs a 17 client: brew install postgresql@17, or
-#   docker run --rm postgres:17-alpine pg_dump "$URL" ...
-pg_dump "$RENDER_EXTERNAL_URL" \
-  --no-owner --no-privileges --format=custom \
-  --exclude-table='solid_*' \
-  -f family_archive.dump
-scp family_archive.dump deploy@192.168.1.7:/tmp/
+# All on the server: it has the Postgres 17 client, so no laptop or scp.
+# Render → Dashboard → family-archive-db → External Database URL. Render
+# requires SSL; a laptop pg_dump without ?sslmode=require (or with a 16
+# client) fails.
+ssh nix-server
+read -r URL   # paste the external URL, so it stays out of shell history
+pg_dump "${URL}?sslmode=require" --no-owner --no-privileges --format=custom \
+  --exclude-table='solid_*' -f /tmp/family_archive.dump
 
-# Server. Wipe whatever a previous rehearsal left behind, restore as the app user.
+# Wipe whatever a previous rehearsal (or db:prepare) left behind, restore as
+# the app user so every table lands owned by family_archive.
+sudo systemctl stop docker-family-archive
 sudo -u postgres psql -d family_archive -c \
   "DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION family_archive;"
 sudo -u postgres pg_restore --no-owner --no-privileges --role=family_archive \
   -d family_archive /tmp/family_archive.dump
-
-# Deploy the Rails image (first time: push a build by hand, see FAMILY-ARCHIVE-SETUP.md §8)
-./scripts/deploy.sh family-archive sha256:<digest>
-docker logs family-archive 2>&1 | head -40   # db:prepare should report nothing pending
+sudo systemctl start docker-family-archive
+docker logs family-archive 2>&1 | grep -iE "migrat|aborted"   # expect the
+# solid-tables migration to run (the dump excludes them), nothing else.
 ```
 
+The Rails image is deployed by the GitHub workflow on every push to
+`master`; the first deploy already happened, so no manual image push.
+
+Checks that can run from the server, with the real Host header against
+Traefik (`-H "Host: mariasfamilyarchive.com" https://127.0.0.1/...`):
+`/up`, `/`, `/family-tree`, `/login` and `/sitemap.xml` return 200; an
+`/rails/active_storage/representations/redirect/...` URL from `/artifacts`
+302s to the S3 bucket and the object returns 200.
+
 Verify without touching DNS. On the laptop add
-`192.168.1.7 mariasfamilyarchive.com` to `/etc/hosts`, then:
+`192.168.1.7 mariasfamilyarchive.com` to `/etc/hosts`. Traefik presents a
+Cloudflare Origin cert, which browsers reject; Firefox lets you continue,
+Chrome needs `thisisunsafe` typed on the error page. Then:
 
 - Home page renders with Lora/Inter (fonts = CSP is right).
 - Log in with the admin account (session secret is right).
@@ -176,6 +188,22 @@ Remove the hosts entry. The test upload lands under `production/` in S3 and in
 the rehearsal DB; it is overwritten by the Phase 3 restore, so delete the S3
 object by hand or ignore the orphan.
 
+Gotchas met during the first rehearsal, already fixed on the server:
+
+- `db-passwords` and `pgbouncer-auth` had `requires = sops-nix.service`, a
+  unit that does not exist, so they never ran against the new cluster (no
+  app passwords, no `pgbouncer` role). Fixed in `modules/postgresql.nix`.
+- The `family-archive-storage` volume was created while the Adonis image was
+  still pinned, so Docker made it an empty root-owned directory and the
+  Rails process (uid 1000) could not create its SQLite files. One-off
+  `chown 1000:1000` on the volume. A volume first mounted by the Rails image
+  inherits `/rails/storage`'s ownership and does not have this problem.
+- `db:prepare` only seeds when it creates the database, and NixOS creates
+  it first, so a fresh server DB has no admin user. Irrelevant once the
+  Render data is restored.
+- The GHCR package `family-archive` was linked to the Adonis repo; the new
+  repo's workflow needed Write under the package's "Manage Actions access".
+
 ---
 
 ## Phase 3 — Cutover (≈10 min downtime)
@@ -184,12 +212,18 @@ The only writer is the admin, so "freeze writes" means don't use the admin.
 
 1. **Suspend** the Render web service (Dashboard → Settings → Suspend). No
    request lands after the dump, and no job is mid-flight.
-2. **Dump and restore** exactly as in Phase 2.
+2. **Dump and restore** exactly as in Phase 2 (all on the server, ~1 min).
 3. `sudo systemctl restart docker-family-archive` so connections are fresh,
    then re-run the `/etc/hosts` checks.
-4. **Cloudflare**: change the `mariasfamilyarchive.com` record from Render's
-   CNAME to an A record → `192.168.1.7`, proxied. Proxied records switch at
-   the edge immediately, no TTL wait. Same for `www` if present.
+4. **Cloudflare**: delete the Render CNAMEs for `mariasfamilyarchive.com`
+   and `www` (the Traefik router only matches the apex). Then on the server
+   `sudo systemctl start cloudflare-ddns`: `modules/cloudflare-ddns.nix`
+   lists the apex with `proxied = true`, so it creates an A record for the
+   current **public** IP (not the LAN address) and keeps it updated. If the
+   log says it cannot find the zone, the Cloudflare API token does not cover
+   `mariasfamilyarchive.com`; create the record by hand (A → public IP,
+   proxied) and widen the token later. Proxied records switch at the edge
+   immediately, no TTL wait. Port 443 is already forwarded to the server.
 5. `curl -I https://mariasfamilyarchive.com/up` → 200. `./scripts/health-check.sh` green.
 6. Leave Render suspended for a week.
 7. Delete the Render service and database. Then in the Rails repo delete
