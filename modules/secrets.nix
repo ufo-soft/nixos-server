@@ -106,8 +106,14 @@
         owner = "root";
       };
 
+      # Read by pg-backup (postgres), redis-backup (redis-queue) and
+      # volume-backup (root). Root-only ownership meant the first two failed
+      # with "can't open ... Permission denied" and no database backup was
+      # ever written; the `backup` group is defined in backups.nix.
       "backup-encryption-key" = {
         owner = "root";
+        group = "backup";
+        mode = "0440";
       };
 
       # Healthchecks
