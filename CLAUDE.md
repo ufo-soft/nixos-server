@@ -9,8 +9,11 @@ Declarative NixOS configuration for a self-hosted server running containerized a
 ## Key Commands
 
 ```bash
-# Build and apply configuration (run on the server)
-# --impure is required because app configs read image digests from /var/lib/deploy/ at eval time
+# Pull, build and apply the configuration, then run the health check (on the server)
+./scripts/rebuild.sh            # add --no-pull to switch to the working tree as is
+
+# The underlying command. --impure is required because app configs read
+# image digests from /var/lib/deploy/ at eval time
 sudo nixos-rebuild switch --flake .#server --impure
 
 # Dry-run to preview changes without applying
