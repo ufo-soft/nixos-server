@@ -173,7 +173,9 @@ Traefik (`-H "Host: mariasfamilyarchive.com" https://127.0.0.1/...`):
 302s to the S3 bucket and the object returns 200.
 
 Verify without touching DNS. On the laptop add
-`192.168.1.7 mariasfamilyarchive.com` to `/etc/hosts`, then:
+`192.168.1.7 mariasfamilyarchive.com` to `/etc/hosts`. Traefik presents a
+Cloudflare Origin cert, which browsers reject; Firefox lets you continue,
+Chrome needs `thisisunsafe` typed on the error page. Then:
 
 - Home page renders with Lora/Inter (fonts = CSP is right).
 - Log in with the admin account (session secret is right).
@@ -213,9 +215,15 @@ The only writer is the admin, so "freeze writes" means don't use the admin.
 2. **Dump and restore** exactly as in Phase 2 (all on the server, ~1 min).
 3. `sudo systemctl restart docker-family-archive` so connections are fresh,
    then re-run the `/etc/hosts` checks.
-4. **Cloudflare**: change the `mariasfamilyarchive.com` record from Render's
-   CNAME to an A record → `192.168.1.7`, proxied. Proxied records switch at
-   the edge immediately, no TTL wait. Same for `www` if present.
+4. **Cloudflare**: delete the Render CNAMEs for `mariasfamilyarchive.com`
+   and `www` (the Traefik router only matches the apex). Then on the server
+   `sudo systemctl start cloudflare-ddns`: `modules/cloudflare-ddns.nix`
+   lists the apex with `proxied = true`, so it creates an A record for the
+   current **public** IP (not the LAN address) and keeps it updated. If the
+   log says it cannot find the zone, the Cloudflare API token does not cover
+   `mariasfamilyarchive.com`; create the record by hand (A → public IP,
+   proxied) and widen the token later. Proxied records switch at the edge
+   immediately, no TTL wait. Port 443 is already forwarded to the server.
 5. `curl -I https://mariasfamilyarchive.com/up` → 200. `./scripts/health-check.sh` green.
 6. Leave Render suspended for a week.
 7. Delete the Render service and database. Then in the Rails repo delete

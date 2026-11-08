@@ -13,8 +13,8 @@ Add `mariasfamilyarchive.com` to Cloudflare and configure DNS.
 3. Update the domain's nameservers at your registrar to the ones Cloudflare gives you
 4. Wait for nameserver propagation (can take up to 24 hours, usually minutes)
 5. Create DNS records:
-   - **A record**: `mariasfamilyarchive.com` → `192.168.1.7` (Proxied / orange cloud)
-   - **A record**: `www.mariasfamilyarchive.com` → `192.168.1.7` (Proxied) — optional, for www redirect
+   - **A record**: `mariasfamilyarchive.com` → the server's **public** IP (Proxied / orange cloud).
+     `modules/cloudflare-ddns.nix` creates and maintains this one if the API token covers the zone.
 6. Set SSL/TLS mode to **Full (strict)**
 
 ### Cloudflare API Token

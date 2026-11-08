@@ -3,10 +3,15 @@
 let
   # Add DNS records here that should track the server's public IP.
   # Each entry needs the full record name and the Cloudflare zone (domain).
+  # `proxied` only matters when the record is first created; updates patch
+  # the IP alone and leave the proxy setting as it is in the dashboard.
   dnsRecords = [
-    { name = "server.timothymarias.com"; zone = "timothymarias.com"; }
-    { name = "lupin-api-production.timothymarias.com"; zone = "timothymarias.com"; }
-    { name = "lupin-api-staging.timothymarias.com"; zone = "timothymarias.com"; }
+    { name = "server.timothymarias.com"; zone = "timothymarias.com"; proxied = false; }
+    { name = "lupin-api-production.timothymarias.com"; zone = "timothymarias.com"; proxied = false; }
+    { name = "lupin-api-staging.timothymarias.com"; zone = "timothymarias.com"; proxied = false; }
+    # Must be proxied: Traefik serves a Cloudflare Origin CA cert for this
+    # host, which only Cloudflare's edge trusts.
+    { name = "mariasfamilyarchive.com"; zone = "mariasfamilyarchive.com"; proxied = true; }
   ];
 
   ddnsScript = pkgs.writeShellScript "cloudflare-ddns" ''
@@ -25,6 +30,7 @@ let
     update_record() {
       local RECORD_NAME="$1"
       local ZONE_NAME="$2"
+      local PROXIED="$3"
 
       # Get zone ID
       local ZONE_ID=$(${pkgs.curl}/bin/curl -s \
@@ -55,21 +61,22 @@ let
         ${pkgs.curl}/bin/curl -s -X POST \
           -H "Authorization: Bearer $CF_API_TOKEN" \
           -H "Content-Type: application/json" \
-          --data "{\"type\":\"A\",\"name\":\"$RECORD_NAME\",\"content\":\"$CURRENT_IP\",\"ttl\":300,\"proxied\":false}" \
+          --data "{\"type\":\"A\",\"name\":\"$RECORD_NAME\",\"content\":\"$CURRENT_IP\",\"ttl\":300,\"proxied\":$PROXIED}" \
           "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
           | ${pkgs.jq}/bin/jq '.success'
       else
         echo "Updating $RECORD_NAME from $OLD_IP to $CURRENT_IP"
-        ${pkgs.curl}/bin/curl -s -X PUT \
+        # PATCH only the address: PUT would reset proxied/ttl on every IP change.
+        ${pkgs.curl}/bin/curl -s -X PATCH \
           -H "Authorization: Bearer $CF_API_TOKEN" \
           -H "Content-Type: application/json" \
-          --data "{\"type\":\"A\",\"name\":\"$RECORD_NAME\",\"content\":\"$CURRENT_IP\",\"ttl\":300,\"proxied\":false}" \
+          --data "{\"content\":\"$CURRENT_IP\"}" \
           "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
           | ${pkgs.jq}/bin/jq '.success'
       fi
     }
 
-    ${lib.concatMapStringsSep "\n" (r: ''update_record "${r.name}" "${r.zone}"'') dnsRecords}
+    ${lib.concatMapStringsSep "\n" (r: ''update_record "${r.name}" "${r.zone}" "${lib.boolToString r.proxied}"'') dnsRecords}
   '';
 in
 {
