@@ -97,8 +97,12 @@ in
   #   3. Rebuild — PgBouncer resolves new users dynamically via auth_query
   systemd.services.db-passwords = {
     description = "Set database passwords and configure PgBouncer auth";
+    # `after` only for sops-nix: secrets are installed by an activation script,
+    # not a unit, so "sops-nix.service" does not exist here. Naming it in
+    # `requires` makes this unit unstartable ("Unit sops-nix.service not found"),
+    # which left a fresh cluster with no app passwords and no pgbouncer role.
     after = [ "postgresql.service" "sops-nix.service" ];
-    requires = [ "postgresql.service" "sops-nix.service" ];
+    requires = [ "postgresql.service" ];
     before = [ "pgbouncer-auth.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
