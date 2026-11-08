@@ -49,7 +49,9 @@ in
 
     labels = {
       "traefik.enable" = "true";
-      "traefik.http.routers.${appName}.rule" = "Host(`${domain}`)";
+      # Rails' host authorization admits subdomains of APP_HOST, and the
+      # Cloudflare origin cert covers the wildcard, so www just works.
+      "traefik.http.routers.${appName}.rule" = "Host(`${domain}`) || Host(`www.${domain}`)";
       "traefik.http.routers.${appName}.entrypoints" = "websecure";
       "traefik.http.routers.${appName}.tls" = "true";
       "traefik.http.routers.${appName}.middlewares" = "rate-limit@file,secure-headers-family-archive@file";
