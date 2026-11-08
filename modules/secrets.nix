@@ -57,7 +57,9 @@
       };
 
       # family-archive app secrets
-      "family-archive/app-key" = {
+      # Signs Rails sessions and Devise tokens. Copied from Render so existing
+      # sessions keep verifying across the cutover; rotating it logs everyone out.
+      "family-archive/secret-key-base" = {
         owner = "root";
         restartUnits = [ "family-archive-env.service" ];
       };
@@ -80,8 +82,9 @@
       };
 
       # Redis ACL password for the family_archive user on the queue instance.
-      # redis-queue.service regenerates its ACL file as an ExecStartPre, so it
-      # must restart alongside the app's env generator when this rotates.
+      # Unused by the Rails app until it moves to Sidekiq, but the ACL user
+      # still exists, so keep it declared. redis-queue.service regenerates its
+      # ACL file as an ExecStartPre, so it must restart when this rotates.
       "family-archive/redis-password" = {
         owner = "root";
         restartUnits = [ "family-archive-env.service" "redis-queue.service" ];

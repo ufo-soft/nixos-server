@@ -1,6 +1,8 @@
 # Family Archive — First-Time Setup
 
-Step-by-step runbook for deploying the family-archive app. Do these in order.
+Step-by-step runbook for deploying the family-archive app from scratch. Do these
+in order. For moving an existing deployment onto this server see
+`FAMILY-ARCHIVE-CUTOVER.md`.
 
 ## 1. Cloudflare — Domain Setup
 
@@ -149,9 +151,10 @@ origin-cert-key-familyarchive: |
 
 # Family Archive app secrets
 family-archive:
-    session-secret: <generate: openssl rand -hex 32>
+    secret-key-base: <copy from Render, or generate: openssl rand -hex 64>
     admin-email: <your email address>
     admin-password: <your admin password>
+    admin-name: <display name for the admin account>
     database-password: <generate: openssl rand -hex 16>
     s3-bucket: <bucket name from step 3>
     s3-region: <e.g., us-east-1>
