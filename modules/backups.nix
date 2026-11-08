@@ -133,6 +133,11 @@ in
   ];
 
   # Daily PostgreSQL backup at 3 AM
+  # Lets the non-root backup units read the GPG passphrase (see secrets.nix).
+  users.groups.backup = {};
+  users.users.postgres.extraGroups = [ "backup" ];
+  users.users.redis-queue.extraGroups = [ "backup" ];
+
   systemd.services.pg-backup = {
     description = "PostgreSQL database backup";
     serviceConfig = {
