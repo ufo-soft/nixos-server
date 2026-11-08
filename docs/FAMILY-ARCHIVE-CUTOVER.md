@@ -89,14 +89,13 @@ days; delete them sooner if you want (`rm /var/backups/postgresql/family_archive
 
 Rails does not use Redis yet (see "Later" below).
 
-- `modules/redis.nix`: comment out the `family-archive` entry in the ACL
-  user list (it comes back with Sidekiq).
-- `modules/secrets.nix` + `secrets/secrets.yaml`: delete
-  `family-archive/redis-password` and `family-archive/app-key`.
 - `apps/personal/family-archive.nix`: drop `redis-queue.service` from
   `after`, drop the `REDIS_URL` line, drop the comment about BullMQ.
+- `modules/secrets.nix` + `secrets/secrets.yaml`: `family-archive/app-key`
+  becomes `family-archive/secret-key-base` (same value is fine).
 
-The Redis instances themselves stay up, idle, for the Sidekiq move.
+The Redis instances, the `family_archive` ACL user and its password all stay
+as they are, idle, so the Sidekiq move only has to put `REDIS_URL` back.
 
 ### 1d. Rework `apps/personal/family-archive.nix` for Rails
 
