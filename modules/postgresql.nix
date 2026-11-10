@@ -64,6 +64,10 @@ in
       ensureDBOwnership = true;
     }) appDatabases) ++ [
       { name = "postgres_exporter"; }
+      # Read-only, socket-only: lets `ssh nix-server pg_dump …` pull a copy of
+      # an app database for development without root or app passwords.
+      # Granted pg_read_all_data in db-passwords below.
+      { name = "deploy"; }
     ];
 
     # Per-app authentication: each user can only connect to its own database
@@ -128,6 +132,12 @@ in
             echo "Set password for postgres_exporter"
           fi
         fi
+
+        # deploy reads every app database over the local socket (peer auth), for
+        # pulling dumps into development. The role has no password, so the
+        # scram-sha-256 host rules never admit it; only peer auth does.
+        ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "GRANT pg_read_all_data TO deploy;"
+        echo "Granted pg_read_all_data to deploy"
 
         # PgBouncer lookup user + auth_query function
         PGB_PASS="$(cat ${config.sops.secrets."pgbouncer/lookup-password".path} 2>/dev/null || true)"
