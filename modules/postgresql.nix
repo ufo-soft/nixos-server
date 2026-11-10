@@ -65,7 +65,7 @@ in
     }) appDatabases) ++ [
       { name = "postgres_exporter"; }
       # Read-only, socket-only: lets `ssh nix-server pg_dump …` pull a copy of
-      # an app database for development without root or app passwords.
+      # an app database for development without running as the postgres superuser.
       # Granted pg_read_all_data in db-passwords below.
       { name = "deploy"; }
     ];
@@ -105,8 +105,10 @@ in
     # not a unit, so "sops-nix.service" does not exist here. Naming it in
     # `requires` makes this unit unstartable ("Unit sops-nix.service not found"),
     # which left a fresh cluster with no app passwords and no pgbouncer role.
-    after = [ "postgresql.service" "sops-nix.service" ];
-    requires = [ "postgresql.service" ];
+    # postgresql-setup.service is where nixpkgs runs ensureUsers; without it
+    # this unit can race role creation and ALTER/GRANT a role that isn't there yet.
+    after = [ "postgresql.service" "postgresql-setup.service" "sops-nix.service" ];
+    requires = [ "postgresql.service" "postgresql-setup.service" ];
     before = [ "pgbouncer-auth.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
@@ -136,8 +138,8 @@ in
         # deploy reads every app database over the local socket (peer auth), for
         # pulling dumps into development. The role has no password, so the
         # scram-sha-256 host rules never admit it; only peer auth does.
-        ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "GRANT pg_read_all_data TO deploy;"
-        echo "Granted pg_read_all_data to deploy"
+        ${pkgs.sudo}/bin/sudo -u postgres ${psql} -c "GRANT pg_read_all_data TO deploy;" \
+          && echo "Granted pg_read_all_data to deploy"
 
         # PgBouncer lookup user + auth_query function
         PGB_PASS="$(cat ${config.sops.secrets."pgbouncer/lookup-password".path} 2>/dev/null || true)"

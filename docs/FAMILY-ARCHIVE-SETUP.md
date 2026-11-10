@@ -192,7 +192,9 @@ The `pgbouncer-auth` service extracts SCRAM password hashes from `pg_shadow` int
 
 ### Read-only `deploy` role
 
-`modules/postgresql.nix` also creates a `deploy` role with `pg_read_all_data` (granted by `db-passwords` on every rebuild). The family_archive repo's `bin/pull-prod` uses it to stream a dump into development with `ssh nix-server pg_dump -Fc family_archive`. The deploy user has no sudo, so this is the only way to dump without root or an app password. The role has no password, so only peer auth over the local socket admits it, i.e. only someone already logged in as `deploy`. It can read every app's database, which `deploy` could already reach by shipping an image. Check it with:
+`modules/postgresql.nix` also creates a `deploy` role with `pg_read_all_data`. The grant is in `db-passwords`, which runs at boot and whenever a rebuild changes that unit. The family_archive repo's `bin/pull-prod` uses the role to stream a dump into development with `ssh nix-server pg_dump -Fc family_archive`. The role has no password, so only peer auth over the local socket admits it, i.e. only someone already logged in as `deploy`. It can read every app's database.
+
+This is least privilege for the dump, not a new boundary. The `deploy` user can already `sudo -u postgres` anything (`modules/base.nix`) and is in the `docker` group, which is root-equivalent. The role just means a routine pull reads as a read-only role instead of the superuser. Check it with:
 
 ```bash
 ssh nix-server 'which pg_dump && psql -d family_archive -c "select count(*) from individuals"'
