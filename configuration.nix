@@ -29,6 +29,7 @@
     # Apps — personal
     ./apps/personal/family-archive.nix
     ./apps/personal/home-cooking.nix
+    ./apps/personal/shopping-list.nix
 
     # Apps — ufo-soft
     ./apps/ufo-soft/lupin-api-production.nix

@@ -151,6 +151,27 @@
         restartUnits = [ "db-passwords.service" "home-cooking-env.service" ];
       };
 
+      # shopping-list app secrets
+      # Signs Rails sessions and remember-me cookies; rotating it signs the
+      # phone out.
+      "shopping-list/secret-key-base" = {
+        owner = "root";
+        restartUnits = [ "shopping-list-env.service" ];
+      };
+
+      "shopping-list/admin-email" = {
+        owner = "root";
+      };
+
+      "shopping-list/admin-password" = {
+        owner = "root";
+      };
+
+      "shopping-list/database-password" = {
+        owner = "root";
+        restartUnits = [ "db-passwords.service" "shopping-list-env.service" ];
+      };
+
       # lupin-api (ufo-soft)
       "lupin-api-production/database-password" = {
         owner = "root";
