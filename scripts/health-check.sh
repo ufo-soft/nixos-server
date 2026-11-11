@@ -29,6 +29,7 @@ echo "Apps"
 echo "────────────────────────────────────"
 check "family-archive"       "https://mariasfamilyarchive.com/up"
 check "home-cooking"         "https://home-cooking.timothymarias.com/health"
+check "shopping-list"        "https://shopping-list.timothymarias.com/up"
 check "lupin-api-production" "https://lupin-api-production.timothymarias.com/health"
 check "lupin-api-staging"    "https://lupin-api-staging.timothymarias.com/health"
 
